@@ -31,7 +31,7 @@ warmstart:
         ldx #$ff
         txs
         cld
-        
+
         ; Set up C128 processor ports (similar to C64 but C128 specific)
         lda #$e3
         sta $01
@@ -46,7 +46,7 @@ warmstart:
         ; BIT 6/7 : RAM used. (00 = RAM 0)
         lda #%00001010
         sta $ff00          ; MMU Configuration Register
-        
+
         ; Initialize C128 system
         jsr $ff8a          ; Restore Vectors
         jsr $ff84          ; Init I/O Devices, Ports & Timers
@@ -91,7 +91,7 @@ _exit:
         ldx #>exitmsg
         jsr _puts
         jsr _cgetc
-        
+
         ; Reset system (C128 reset vector)
         jmp $fcce          ; C128 reset vector
 
@@ -103,4 +103,3 @@ exitmsg:
 ; Pad to end of 16K block
 .segment "PADEND"
         .byte 0
-

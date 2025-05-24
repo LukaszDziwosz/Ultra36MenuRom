@@ -3,17 +3,17 @@
 ;
 
 .export _exit
-.export         __STARTUP__ : absolute = 1      ; Mark as startup
+.export __STARTUP__ : absolute = 1      ; Mark as startup
 .import initlib, donelib
-.import         zerobss
-.import     callmain, pushax
-.import         RESTOR, BSOUT, CLRCH
+.import zerobss
+.import callmain, pushax
+.import RESTOR, BSOUT, CLRCH
 .import __RAM_START__, __RAM_SIZE__ ; Linker generated
 .import _cgetc, _puts, _memcpy
 .import __DATA_LOAD__, __DATA_RUN__, __DATA_SIZE__
 
-.include        "zeropage.inc"
-.include     "c128.inc"
+.include "zeropage.inc"
+.include "c128.inc"
 
 .segment "STARTUP"
 
@@ -46,7 +46,7 @@ warmstart:
         ; BIT 6/7 : RAM used. (00 = RAM 0)
         lda #%00101010     ; Note: bits 4/5 = 10 for External ROM in HIGH area too
         sta $ff00          ; MMU Configuration Register
-        
+
         ; Initialize C128 system
         jsr $ff8a          ; Restore Vectors
         jsr $ff84          ; Init I/O Devices, Ports & Timers
@@ -91,7 +91,7 @@ _exit:
         ldx #>exitmsg
         jsr _puts
         jsr _cgetc
-        
+
         ; Reset system (C128 reset vector)
         jmp $fcce          ; C128 reset vector
 
@@ -115,4 +115,3 @@ high_rom_function:
 ; Pad to end of HIGH ROM 
 .segment "PADHI"
         .byte 0
-
