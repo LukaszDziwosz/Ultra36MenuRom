@@ -15,7 +15,7 @@ TARGET:=$(OUTDIR)/$(CARTTYPE).bin
 
 CFG = $(wildcard $(CARTTYPE)/*.cfg)
 ASRC = $(wildcard $(CARTTYPE)/*.s)
-CSRC = $(wildcard src/*.c)
+CSRC = src/main.c
 
 OBJ = $(ASRC:.s=.o) $(CSRC:.c=.o)
 
@@ -29,6 +29,12 @@ CFLAGS:=-Cl -Oris -t c128 $(DEFS)
 
 $(TARGET): $(ASRC) $(CSRC)
 	$(CL) --config $(CFG) $(CFLAGS) -o $@ $^
+
+# Run in VICE with attached function ROM
+.PHONY: run
+run: $(TARGET)
+	@echo "Running C128 with attached function ROM..."
+	x128 -cartfrom $(TARGET)
 
 .PHONY: clean
 clean:
