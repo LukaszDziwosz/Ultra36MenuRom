@@ -6,3 +6,7 @@ build/
 
 # .DS_Store is a macOS metadata file and doesn’t belong in source control.
 .DS_Store
+src/.DS_Store
+build/.DS_Store
+cart128_16/.DS_Store
+cart128_32/.DS_Store
