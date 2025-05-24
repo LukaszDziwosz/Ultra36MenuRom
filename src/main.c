@@ -7,8 +7,10 @@
 // Forward declaration
 int mainmenu();
 
+// Global screen width so other functions can use it
+unsigned char SCREENW;
+
 int main(void) {
-    unsigned char SCREENW;
     int selected;
 
     // Detect screen width (VIC or VDC)
@@ -20,7 +22,6 @@ int main(void) {
     }
 
     clrscr();
-    cputsxy(0, 0, (SCREENW == 80) ? "Hello from ROM (80-col)" : "Hello from ROM (40-col)");
 
     selected = mainmenu();
 
@@ -39,19 +40,41 @@ int mainmenu() {
         ROM5_NAME, ROM6_NAME, ROM7_NAME
     };
     int selected = 0;
+    int previous = -1;
     unsigned char key;
     unsigned char i;
 
-    while (1) {
-        clrscr();
-        gotoxy(0, 0);
-        cputs("Select ROM bank:");
+    // Title Bar
+    gotoxy(0, 0);
+    revers(1);
+    textcolor(COLOR_CYAN);
+    for (i = 0; i < SCREENW; i++) cputc(' ');
+    gotoxy((SCREENW - 20) / 2, 0);
+    cputs("Ultra-36 ROM Menu");
+    revers(0);
+    textcolor(COLOR_WHITE);
 
-        for (i = 0; i < 7; i++) {
-            gotoxy(2, i + 2);
-            if (i == selected) revers(1);
-            cprintf("%d. %s", i + 1, romNames[i]);
-            revers(0);
+    gotoxy(0, 1);
+    cputs("Select ROM bank:");
+
+    while (1) {
+        if (selected != previous) {
+            for (i = 0; i < NUM_ROMS; i++) {
+                gotoxy(2, i + 3);
+                cclear(SCREENW - 4);
+
+                if (i == selected) {
+                    textcolor(COLOR_YELLOW);
+                    revers(1);
+                }
+
+                gotoxy(2, i + 3);
+                cprintf("%d. %s", i + 1, romNames[i]);
+
+                revers(0);
+                textcolor(COLOR_WHITE);
+            }
+            previous = selected;
         }
 
         key = cgetc();
@@ -61,7 +84,7 @@ int mainmenu() {
                 if (selected > 0) selected--;
                 break;
             case CH_CURS_DOWN:
-                if (selected < 7) selected++;
+                if (selected < NUM_ROMS - 1) selected++;
                 break;
             case CH_ENTER:
                 return selected;

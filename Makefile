@@ -9,7 +9,8 @@ DEFS = -DROM1_NAME=\"GEOS\" \
        -DROM4_NAME=\"SuperA\" \
        -DROM5_NAME=\"SuperB\" \
        -DROM6_NAME=\"Basic8\" \
-       -DROM7_NAME=\"KeyDOS\"
+       -DROM7_NAME=\"KeyDOS\" \
+       -DNUM_ROMS=7
 
 TARGET:=$(OUTDIR)/$(CARTTYPE).bin
 
