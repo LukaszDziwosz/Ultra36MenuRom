@@ -6,6 +6,8 @@
 
 // Forward declaration
 int mainmenu();
+void draw_rom_label(void);
+int process_menu_key(int selected);
 
 // Global screen width so other functions can use it
 unsigned char SCREENW;
@@ -79,14 +81,14 @@ int mainmenu() {
     revers(0);
 
     // ROM list label
-    textcolor(COLOR_WHITE);
-    gotoxy(0, 4);
-    cputs("Select ROM bank:");
+    draw_rom_label();
 
     while (1) {
+        int result;
+
         if (selected != previous) {
             for (i = 0; i < NUM_ROMS; i++) {
-                gotoxy(2, i + 6); // Start below title, fkey, and label
+                gotoxy(2, i + 6);
                 cclear(SCREENW - 4);
 
                 if (i == selected) {
@@ -103,36 +105,43 @@ int mainmenu() {
             previous = selected;
         }
 
-        key = cgetc();
-
-        switch (key) {
-            case CH_CURS_UP:
-                if (selected > 0) selected--;
-                break;
-            case CH_CURS_DOWN:
-                if (selected < NUM_ROMS - 1) selected++;
-                break;
-            case CH_ENTER:
-                return selected;
-
-            // F-key actions
-            case CH_F1:
-                gotoxy(0, 24);
-                cclear(SCREENW);
-                cputsxy(0, 24, "You pressed F1 - ROM Select");
-                break;
-
-            case CH_F2:
-                gotoxy(0, 24);
-                cclear(SCREENW);
-                cputsxy(0, 24, "You pressed F2 - JiffyDOS");
-                break;
-
-            case CH_F3:
-                gotoxy(0, 24);
-                cclear(SCREENW);
-                cputsxy(0, 24, "You pressed F3 - Info");
-                break;
-        }
+        result = process_menu_key(selected);
+        if (result == -100) return selected;
+        selected = result;
     }
+}
+
+void draw_rom_label(void) {
+    textcolor(COLOR_WHITE);
+    gotoxy(0, 4);
+    cputs("Select ROM bank:");
+}
+
+int process_menu_key(int selected) {
+    unsigned char key = cgetc();
+
+    switch (key) {
+        case CH_CURS_UP:
+            if (selected > 0) selected--;
+            break;
+        case CH_CURS_DOWN:
+            if (selected < NUM_ROMS - 1) selected++;
+            break;
+        case CH_ENTER:
+            return -100; // Special value to signal exit
+        case CH_F1:
+            gotoxy(0, 24); cclear(SCREENW);
+            cputsxy(0, 24, "You pressed F1 - ROM Select");
+            break;
+        case CH_F2:
+            gotoxy(0, 24); cclear(SCREENW);
+            cputsxy(0, 24, "You pressed F2 - JiffyDOS");
+            break;
+        case CH_F3:
+            gotoxy(0, 24); cclear(SCREENW);
+            cputsxy(0, 24, "You pressed F3 - Info");
+            break;
+    }
+
+    return selected;
 }
