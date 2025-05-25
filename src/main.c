@@ -8,6 +8,7 @@
 int mainmenu();
 void draw_rom_label(void);
 int process_menu_key(int selected);
+int draw_rom_list_and_select(const char* romNames[], int selected);
 
 // Global screen width so other functions can use it
 unsigned char SCREENW;
@@ -86,24 +87,7 @@ int mainmenu() {
     while (1) {
         int result;
 
-        if (selected != previous) {
-            for (i = 0; i < NUM_ROMS; i++) {
-                gotoxy(2, i + 6);
-                cclear(SCREENW - 4);
-
-                if (i == selected) {
-                    textcolor(COLOR_YELLOW);
-                    revers(1);
-                }
-
-                gotoxy(2, i + 6);
-                cprintf("%d. %s", i + 1, romNames[i]);
-
-                revers(0);
-                textcolor(COLOR_WHITE);
-            }
-            previous = selected;
-        }
+        selected = draw_rom_list_and_select(romNames, selected);
 
         result = process_menu_key(selected);
         if (result == -100) return selected;
@@ -115,6 +99,32 @@ void draw_rom_label(void) {
     textcolor(COLOR_WHITE);
     gotoxy(0, 4);
     cputs("Select ROM bank:");
+}
+
+int draw_rom_list_and_select(const char* romNames[], int selected) {
+    static int previous = -1;
+    unsigned char i;
+
+    if (selected != previous) {
+        for (i = 0; i < NUM_ROMS; i++) {
+            gotoxy(2, i + 6); // Below title, fkeys, and label
+            cclear(SCREENW - 4);
+
+            if (i == selected) {
+                textcolor(COLOR_YELLOW);
+                revers(1);
+            }
+
+            gotoxy(2, i + 6);
+            cprintf("%d. %s", i + 1, romNames[i]);
+
+            revers(0);
+            textcolor(COLOR_WHITE);
+        }
+        previous = selected;
+    }
+
+    return selected;
 }
 
 int process_menu_key(int selected) {
