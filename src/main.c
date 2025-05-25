@@ -39,6 +39,12 @@ int mainmenu() {
         ROM1_NAME, ROM2_NAME, ROM3_NAME, ROM4_NAME,
         ROM5_NAME, ROM6_NAME, ROM7_NAME
     };
+    const char* fkeyLabels[] = {
+        "F1: ROM Select",
+        "F2: JiffyDOS",
+        "F3: Info"
+    };
+
     int selected = 0;
     int previous = -1;
     unsigned char key;
@@ -49,18 +55,38 @@ int mainmenu() {
     revers(1);
     textcolor(COLOR_CYAN);
     for (i = 0; i < SCREENW; i++) cputc(' ');
-    gotoxy((SCREENW - 20) / 2, 0);
+    
+    // Center the main title
+    gotoxy((SCREENW - 18) / 2, 0);  // 18 is length of "Ultra-36 ROM Menu"
     cputs("Ultra-36 ROM Menu");
+    
+    // Place version at the right
+    gotoxy(SCREENW - 6, 0);  // 6 is length of "v0.0.1"
+    cputs("v0.0.1");
+    
     revers(0);
-    textcolor(COLOR_WHITE);
 
+    // F-key menu bar (line 2)
     gotoxy(0, 1);
+    revers(1);
+    textcolor(COLOR_LIGHTRED);
+    for (i = 0; i < SCREENW; i++) cputc(' ');  // Fill entire line with spaces first
+    gotoxy(0, 1);  // Go back to start of line
+    for (i = 0; i < 3; i++) {
+        cprintf("%s ", fkeyLabels[i]);
+        if (i < 2) cputc(' ');
+    }
+    revers(0);
+
+    // ROM list label
+    textcolor(COLOR_WHITE);
+    gotoxy(0, 4);
     cputs("Select ROM bank:");
 
     while (1) {
         if (selected != previous) {
             for (i = 0; i < NUM_ROMS; i++) {
-                gotoxy(2, i + 3);
+                gotoxy(2, i + 6); // Start below title, fkey, and label
                 cclear(SCREENW - 4);
 
                 if (i == selected) {
@@ -68,7 +94,7 @@ int mainmenu() {
                     revers(1);
                 }
 
-                gotoxy(2, i + 3);
+                gotoxy(2, i + 6);
                 cprintf("%d. %s", i + 1, romNames[i]);
 
                 revers(0);
@@ -88,6 +114,25 @@ int mainmenu() {
                 break;
             case CH_ENTER:
                 return selected;
+
+            // F-key actions
+            case CH_F1:
+                gotoxy(0, 24);
+                cclear(SCREENW);
+                cputsxy(0, 24, "You pressed F1 - ROM Select");
+                break;
+
+            case CH_F2:
+                gotoxy(0, 24);
+                cclear(SCREENW);
+                cputsxy(0, 24, "You pressed F2 - JiffyDOS");
+                break;
+
+            case CH_F3:
+                gotoxy(0, 24);
+                cclear(SCREENW);
+                cputsxy(0, 24, "You pressed F3 - Info");
+                break;
         }
     }
 }
