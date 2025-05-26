@@ -172,7 +172,8 @@ void draw_fkey_bar(void) {
             textcolor(COLOR_LIGHTRED);
         }
         cprintf("%s", fkeyLabels[i]);
-        if (i < 2) cputs("  ");
+        textcolor(COLOR_LIGHTRED); // Highlight only text
+        cputs("  "); // keep the space red
     }
     
     revers(0);
