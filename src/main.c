@@ -9,11 +9,13 @@ int mainmenu();
 void draw_title_bar(void);
 void draw_fkey_bar(void);
 void draw_content_area(const char* title, const char* options[], int count, int selected);
+void draw_options(const char* options[], int count, int selected);
 int handle_navigation(int selected, int max_items, unsigned char key);
 void draw_rom_screen(int selected);
 void draw_jiffy_screen(int selected);
 void draw_info_screen(void);
 void show_status_message(const char* message);
+void on_screen_instructions(void);
 
 // Global variables
 unsigned char SCREENW;
@@ -37,8 +39,6 @@ const char* fkeyLabels[] = {
 };
 
 int main(void) {
-    int result;
-
     // Detect screen width (VIC or VDC)
     if (PEEK(0x00EE) == 79) {
         SCREENW = 80;
@@ -48,14 +48,7 @@ int main(void) {
     }
 
     clrscr();
-    result = mainmenu();
-
-    if (result >= 0) {
-        clrscr();
-        cprintf("You selected ROM bank #%d\n", result + 1);
-        cputsxy(0, 2, "Press any key to exit...");
-        cgetc();
-    }
+    mainmenu(); // no need to capture a return value anymore
 
     set_c128_speed(SPEED_SLOW);
     return 0;
@@ -108,10 +101,18 @@ int mainmenu() {
         switch (current_screen) {
             case 0: // ROM selection
                 if (key == CH_ENTER) {
-                    return rom_selected;
+                     char buffer[40];
+                     sprintf(buffer, "%s selected", romNames[rom_selected]);
+                     show_status_message(buffer);
                 }
-                rom_selected = handle_navigation(rom_selected, NUM_ROMS, key);
-                draw_rom_screen(rom_selected);
+                {
+                    int old_selected = rom_selected;
+                    rom_selected = handle_navigation(rom_selected, NUM_ROMS, key);
+                    if (old_selected != rom_selected) {
+                        draw_options(romNames, NUM_ROMS, rom_selected);
+                        // Send command to Tiny85 here
+                    }
+                }
                 break;
 
             case 1: // JiffyDOS toggle
@@ -120,8 +121,13 @@ int mainmenu() {
                         "JiffyDOS enabled!" : "JiffyDOS disabled!");
                     // Here you would actually apply the JiffyDOS setting
                 }
-                jiffy_selected = handle_navigation(jiffy_selected, 2, key);
-                draw_jiffy_screen(jiffy_selected);
+                {
+                    int old_selected = jiffy_selected;
+                    jiffy_selected = handle_navigation(jiffy_selected, 2, key);
+                    if (old_selected != jiffy_selected) {
+                        draw_options(jiffyOptions, 2, jiffy_selected);
+                    }
+                }
                 break;
 
             case 2: // Info screen
@@ -193,9 +199,24 @@ void draw_content_area(const char* title, const char* options[], int count, int 
     gotoxy(0, 4);
     cputs(title);
     
+    // Draw options using the separated function
+    draw_options(options, count, selected);
+    
+    textcolor(COLOR_WHITE);
+}
+
+void draw_options(const char* options[], int count, int selected) {
+    unsigned char i;
+    
+    // Clear the options area only
+    for (i = 0; i < count; i++) {
+        gotoxy(2, 6 + i);
+        cclear(SCREENW);
+    }
+    
     // Draw options
     for (i = 0; i < count; i++) {
-        gotoxy(2, i + 6);
+        gotoxy(2, 6 + i);
         
         if (i == selected) {
             textcolor(COLOR_YELLOW);
@@ -229,19 +250,23 @@ void draw_rom_screen(int selected) {
     draw_content_area("Select ROM bank:", romNames, NUM_ROMS, selected);
     
     // Add instructions
-    gotoxy(0, 20);
-    textcolor(COLOR_LIGHTBLUE);
-    cputs("Use UP/DOWN arrows to select, ENTER to confirm");
+    on_screen_instructions();
 }
 
 void draw_jiffy_screen(int selected) {
     draw_content_area("Toggle JiffyDOS setting:", jiffyOptions, 2, selected);
     
     // Add instructions
-    gotoxy(0, 20);
-    textcolor(COLOR_LIGHTBLUE);
-    cputs("Use UP/DOWN arrows to select, ENTER to apply");
+    on_screen_instructions();
 }
+
+void on_screen_instructions(void) {
+    textcolor(COLOR_LIGHTBLUE);
+    cputsxy(1, 16, "Use UP/DOWN to select,");
+    cputsxy(1, 17, "Press ENTER to apply,");
+    cputsxy(1, 18, "Reboot or reset to take effect!");
+}
+
 
 void draw_info_screen(void) {
     unsigned char i;
@@ -254,44 +279,44 @@ void draw_info_screen(void) {
     
     // Draw info content
     textcolor(COLOR_WHITE);
-    gotoxy(0, 4);
+    gotoxy(0, 3);
     cputs("Ultra-36 ROM Switcher Information");
+    gotoxy(0, 4);
+    cputs("Version: 0.0.1 - Author: Lukasz Dziwosz");
     
     gotoxy(0, 6);
-    cputs("Version: 0.0.1");
-    gotoxy(0, 7);
-    cputs("Author: [Your Name]");
-    gotoxy(0, 8);
-    cputs("Build Date: [Build Date]");
-    
-    gotoxy(0, 10);
     cputs("Features:");
-    gotoxy(2, 11);
+    gotoxy(2, 7);
     cputs("- Switch between 7 ROM banks");
-    gotoxy(2, 12);
+    gotoxy(2, 8);
     cputs("- Toggle JiffyDOS on/off");
-    gotoxy(2, 13);
+    gotoxy(2, 9);
     cputs("- VIC-II and VDC support");
-    
-    gotoxy(0, 15);
+
+    gotoxy(0, 10);
+    cprintf("Selection will be remembered.");
+    gotoxy(0, 11);
+    cprintf("Hold reset for 3 seconds,");
+    gotoxy(0, 12);
+    cprintf("to return to Menu");
+ 
+    gotoxy(0, 14);
     cputs("Controls:");
-    gotoxy(2, 16);
+    gotoxy(2, 15);
     cputs("F1/F2/F3 - Switch between screens");
-    gotoxy(2, 17);
+    gotoxy(2, 16);
     cputs("UP/DOWN  - Navigate options");
-    gotoxy(2, 18);
+    gotoxy(2, 17);
     cputs("ENTER    - Select/Apply");
-    gotoxy(2, 19);
-    cputs("ESC      - Exit program");
+    gotoxy(0, 19);
+    cputs("Thanks to Xander Mol, M Witkowiak");
 }
 
 void show_status_message(const char* message) {
-    gotoxy(0, 23);
-    cclear(SCREENW);
+    cclearxy(1, 14, SCREENW);
     textcolor(COLOR_LIGHTGREEN);
-    cputsxy(0, 23, message);
+    cputsxy(1, 14, message);
     textcolor(COLOR_WHITE);
-    
     // Brief pause to show the message
     {
         unsigned int delay;
@@ -299,8 +324,6 @@ void show_status_message(const char* message) {
             // Simple delay loop
         }
     }
-    
     // Clear the status line
-    gotoxy(0, 23);
-    cclear(SCREENW);
+    cclearxy(1, 14, SCREENW);
 }
