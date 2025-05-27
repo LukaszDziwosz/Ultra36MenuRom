@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <conio.h>
 #include <peekpoke.h>
 #include <c128.h>
@@ -17,6 +18,7 @@ void draw_jiffy_screen(int selected);
 void draw_info_screen(void);
 void show_status_message(const char* message);
 void on_screen_instructions(void);
+void draw_util_bar(void);
 
 // Global variables
 unsigned char SCREENW;
@@ -39,7 +41,16 @@ const char* fkeyLabels[] = {
     "F3: Info"
 };
 
+const char* utilKeyLabels[] = {
+    "F4: Go 128",
+    "F5: Go 64",
+    "F6: VDC Info",
+    "F7: SID Info"
+};
+
 int main(void) {
+    int result;
+
     // Detect screen width (VIC or VDC)
     if (PEEK(0x00EE) == 79) {
         SCREENW = 80;
@@ -49,10 +60,16 @@ int main(void) {
     }
 
     clrscr();
-    mainmenu(); // no need to capture a return value anymore
 
-   // set_c128_speed(SPEED_SLOW);
-    return 0;
+    // Wait for mainmenu to return
+    while ((result = mainmenu()) == 0) {
+        // Loop until mainmenu returns non-zero (exit code)
+    }
+    
+    // Clean up before exit
+    clrscr();
+    set_c128_speed(SPEED_SLOW);
+    return result;
 }
 
 int mainmenu() {
@@ -63,6 +80,7 @@ int mainmenu() {
     // Draw static elements
     draw_title_bar();
     draw_fkey_bar();
+    draw_util_bar();
 
     // Start with ROM selection screen
     current_screen = 0;
@@ -94,8 +112,20 @@ int mainmenu() {
                     draw_info_screen();
                 }
                 continue;
-            case CH_ESC:
-                return -1; // Exit without selection
+            case CH_F4:
+                show_status_message("Switching to C64 Mode...");
+                // #define EXEC_BOOT 0x10, #define EXEC_RUN64 0x04 ??
+                // Find a way to reboot in c64 mode
+                break;
+            case CH_F5:
+                show_status_message("Switching to C128 BASIC...");
+                return EXIT_SUCCESS;
+            case CH_F6:
+                show_status_message("VDC Info: Not Implemented");
+                break;
+            case CH_F7:
+                show_status_message("SID Info: Not Implemented");
+                break;
         }
 
         // Handle screen-specific navigation
@@ -189,8 +219,8 @@ void draw_fkey_bar(void) {
 void draw_content_area(const char* title, const char* options[], int count, int selected) {
     unsigned char i;
     
-    // Clear content area (lines 3-23)
-    for (i = 3; i < 23; i++) {
+    // Clear content area (lines 3-21) - avoid utility bar at 22-23
+    for (i = 3; i < 22; i++) {
         cclearxy(0, i, SCREENW);
     }
     
@@ -267,11 +297,12 @@ void on_screen_instructions(void) {
 }
 
 
+// Update info screen to not overwrite utility bar
 void draw_info_screen(void) {
     unsigned char i;
 
-    // Clear content area
-    for (i = 3; i < 23; i++) {
+    // Clear content area (avoid utility bar)
+    for (i = 3; i < 22; i++) {
         cclearxy(0, i, SCREENW);
     }
 
@@ -297,13 +328,52 @@ void draw_info_screen(void) {
     cputsxy(0, 19, "Thanks to Xander Mol, M Witkowiak");
 }
 
+void draw_util_bar(void) {
+    unsigned char i;
+    unsigned char half_width = SCREENW / 2;
+    
+    // Clear the utility bar area first
+    for (i = 23; i <= 24; i++) {
+        cclearxy(0, i, SCREENW);
+    }
+    
+    // Left side - F4: Go 64
+    gotoxy(1, 23);
+    revers(1); // Highlight F4
+    textcolor(COLOR_CYAN);
+    cputs("F4:");
+    revers(0); // Un highlight the rest
+    cputs(" Go 64");
+    
+    // Right side - F5: Go 128
+    gotoxy(half_width + 1, 23);
+    revers(1);
+    cputs("F5:");
+    revers(0);
+    cputs(" Go 128");
+    
+    // Left side - F6: VDC Info
+    gotoxy(1, 24);
+    revers(1);
+    cputs("F6:");
+    revers(0);
+    cputs(" VDC Info");
+    
+    // Right side - F7: SID Info
+    gotoxy(half_width + 1, 24);
+    revers(1);
+    cputs("F7:");
+    revers(0);
+    cputs(" SID Info");
+}
+
 void show_status_message(const char* message) {
-    cclearxy(1, 14, SCREENW);
+    cclearxy(1, 21, SCREENW);
     textcolor(COLOR_LIGHTGREEN);
-    cputsxy(1, 14, message);
+    cputsxy(1, 21, message);
     textcolor(COLOR_WHITE);
     // Brief pause to show the message
     sleep(1);
     // Clear the status line
-    cclearxy(1, 14, SCREENW);
+    cclearxy(1, 21, SCREENW);
 }
