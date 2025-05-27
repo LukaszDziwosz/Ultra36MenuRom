@@ -190,14 +190,12 @@ void draw_content_area(const char* title, const char* options[], int count, int 
     
     // Clear content area (lines 3-23)
     for (i = 3; i < 23; i++) {
-        gotoxy(0, i);
-        cclear(SCREENW);
+        cclearxy(0, i, SCREENW);
     }
     
     // Draw title
     textcolor(COLOR_WHITE);
-    gotoxy(0, 4);
-    cputs(title);
+    cputsxy(0, 4, title);
     
     // Draw options using the separated function
     draw_options(options, count, selected);
@@ -270,46 +268,32 @@ void on_screen_instructions(void) {
 
 void draw_info_screen(void) {
     unsigned char i;
-    
+
     // Clear content area
     for (i = 3; i < 23; i++) {
-        gotoxy(0, i);
-        cclear(SCREENW);
+        cclearxy(0, i, SCREENW);
     }
-    
+
     // Draw info content
     textcolor(COLOR_WHITE);
-    gotoxy(0, 3);
-    cputs("Ultra-36 ROM Switcher Information");
-    gotoxy(0, 4);
-    cputs("Version: 0.0.1 - Author: Lukasz Dziwosz");
-    
-    gotoxy(0, 6);
-    cputs("Features:");
-    gotoxy(2, 7);
-    cputs("- Switch between 7 ROM banks");
-    gotoxy(2, 8);
-    cputs("- Toggle JiffyDOS on/off");
-    gotoxy(2, 9);
-    cputs("- VIC-II and VDC support");
+    cputsxy(0, 3, "Ultra-36 ROM Switcher Information");
+    cputsxy(0, 4, "Version: 0.0.1 - Author: Lukasz Dziwosz");
 
-    gotoxy(0, 10);
-    cprintf("Selection will be remembered.");
-    gotoxy(0, 11);
-    cprintf("Hold reset for 3 seconds,");
-    gotoxy(0, 12);
-    cprintf("to return to Menu");
- 
-    gotoxy(0, 14);
-    cputs("Controls:");
-    gotoxy(2, 15);
-    cputs("F1/F2/F3 - Switch between screens");
-    gotoxy(2, 16);
-    cputs("UP/DOWN  - Navigate options");
-    gotoxy(2, 17);
-    cputs("ENTER    - Select/Apply");
-    gotoxy(0, 19);
-    cputs("Thanks to Xander Mol, M Witkowiak");
+    cputsxy(0, 6, "Features:");
+    cputsxy(2, 7, "- Switch between 7 ROM banks");
+    cputsxy(2, 8, "- Toggle JiffyDOS on/off");
+    cputsxy(2, 9, "- VIC-II and VDC support");
+
+    cputsxy(0, 10, "Selection will be remembered.");
+    cputsxy(0, 11, "Hold reset for 3 seconds,");
+    cputsxy(0, 12, "to return to Menu");
+
+    cputsxy(0, 14, "Controls:");
+    cputsxy(2, 15, "F1/F2/F3 - Switch between screens");
+    cputsxy(2, 16, "UP/DOWN  - Navigate options");
+    cputsxy(2, 17, "ENTER    - Select/Apply");
+
+    cputsxy(0, 19, "Thanks to Xander Mol, M Witkowiak");
 }
 
 void show_status_message(const char* message) {
