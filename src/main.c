@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <unistd.h>
 #include <conio.h>
 #include <peekpoke.h>
 #include <c128.h>
@@ -50,7 +51,7 @@ int main(void) {
     clrscr();
     mainmenu(); // no need to capture a return value anymore
 
-    set_c128_speed(SPEED_SLOW);
+   // set_c128_speed(SPEED_SLOW);
     return 0;
 }
 
@@ -302,12 +303,7 @@ void show_status_message(const char* message) {
     cputsxy(1, 14, message);
     textcolor(COLOR_WHITE);
     // Brief pause to show the message
-    {
-        unsigned int delay;
-        for (delay = 0; delay < 30000; delay++) {
-            // Simple delay loop
-        }
-    }
+    sleep(1);
     // Clear the status line
     cclearxy(1, 14, SCREENW);
 }
