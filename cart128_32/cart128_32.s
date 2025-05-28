@@ -8,7 +8,7 @@
 .import zerobss
 .import callmain, pushax
 .import RESTOR, BSOUT, CLRCH
-.import __RAM_START__, __RAM_SIZE__ ; Linker generated
+.import __RAM_START__, __RAM_SIZE__     ; Linker generated
 .import _cgetc, _puts, _memcpy
 .import __DATA_LOAD__, __DATA_RUN__, __DATA_SIZE__
 
@@ -83,22 +83,22 @@ warmstart:
         jsr     callmain
 
 ; Back from main (This is also the _exit entry). Run module destructors
-_exit:  
-        jsr donelib
+_exit:
+    jsr donelib
 
-        ; Display exit message
-        lda #<exitmsg
-        ldx #>exitmsg
-        jsr _puts
-        jsr _cgetc
+    ; Display exit message
+    lda #<exitmsg
+    ldx #>exitmsg
+    jsr _puts
+    jsr _cgetc
 
-        ; Reset system (C128 reset vector)
-        jmp $fcce          ; C128 reset vector
+    ; Return to BASIC prompt
+    jmp $e422
 
 .rodata
 exitmsg:
-        .byte "Your program has ended.  Press any key",13
-        .byte "to continue...",0
+        .byte "Your program has ended.",13
+        .byte "Press any key to continue...",0
 
 ; Pad to end of LOW ROM (16K block)
 .segment "PADLO"

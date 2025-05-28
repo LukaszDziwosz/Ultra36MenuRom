@@ -1,3 +1,5 @@
+// main.c
+
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -61,11 +63,8 @@ int main(void) {
 
     clrscr();
 
-    // Wait for mainmenu to return
-    while ((result = mainmenu()) == 0) {
-        // Loop until mainmenu returns non-zero (exit code)
-    }
-    
+    result = mainmenu();
+
     // Clean up before exit
     clrscr();
     set_c128_speed(SPEED_SLOW);
