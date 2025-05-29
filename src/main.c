@@ -44,13 +44,6 @@ const char* fkeyLabels[] = {
     "F3: Info"
 };
 
-const char* utilKeyLabels[] = {
-    "F4: Go 128",
-    "F5: Go 64",
-    "F6: VDC Info",
-    "F7: SID Info"
-};
-
 int main(void) {
     int result;
 
@@ -160,7 +153,7 @@ int mainmenu() {
                         draw_options_colors(2, jiffy_selected); // Only update colors!
                     }
                 }
-
+                break;
             case 2: // Info screen
                 // Info screen is static, just wait for F-key navigation
                 break;
@@ -372,12 +365,11 @@ void draw_info_screen(void) {
     cputsxy(2, 17, "ENTER    - Select/Apply");
 
     cputsxy(0, 19, "Thanks to:  Jim Brain, Jani");
-    cputsxy(0, 19, "Xander Mol, Maciej Witkowiak");
+    cputsxy(0, 20, "Xander Mol, Maciej Witkowiak");
 }
 
 void draw_util_bar(void) {
     unsigned char i;
-    unsigned char half_width = SCREENW / 2;
     
     // Clear the utility bar area first
     for (i = 23; i <= 24; i++) {
@@ -386,14 +378,14 @@ void draw_util_bar(void) {
     
     // Left side - F4: Go 64
     gotoxy(1, 23);
-    revers(1); // Highlight F4
+    revers(1);
     textcolor(COLOR_CYAN);
     cputs("F4:");
-    revers(0); // Un highlight the rest
+    revers(0);
     cputs(" Go 64");
     
     // Right side - F5: Go 128
-    gotoxy(half_width + 1, 23);
+    gotoxy(SCREENW / 2 + 1, 23); // <-- Inline calculation
     revers(1);
     cputs("F5:");
     revers(0);
@@ -407,7 +399,7 @@ void draw_util_bar(void) {
     cputs(" VDC Info");
     
     // Right side - F7: SID Info
-    gotoxy(half_width + 1, 24);
+    gotoxy(SCREENW / 2 + 1, 24); // <-- Inline calculation
     revers(1);
     cputs("F7:");
     revers(0);
