@@ -1,5 +1,4 @@
-// main.c
-
+// MARK: main.c
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -13,8 +12,10 @@ int mainmenu();
 void draw_title_bar(void);
 void draw_fkey_bar(void);
 void draw_content_area(const char* title, const char* options[], int count, int selected);
-void draw_options(const char* options[], int count, int selected);
-int handle_navigation(int selected, int max_items, unsigned char key);
+void draw_options_initial(const char* options[], int count, int selected);
+void draw_options_colors(int count, int selected);
+void update_option_color(int option_num, int is_selected, int line_y);
+int handle_selection(int selected, int max_items, unsigned char key);
 void draw_rom_screen(int selected);
 void draw_jiffy_screen(int selected);
 void draw_info_screen(void);
@@ -137,14 +138,15 @@ int mainmenu() {
                 }
                 {
                     int old_selected = rom_selected;
-                    rom_selected = handle_navigation(rom_selected, NUM_ROMS, key);
+                    rom_selected = handle_selection(rom_selected, NUM_ROMS, key);
                     if (old_selected != rom_selected) {
-                        draw_options(romNames, NUM_ROMS, rom_selected);
+                        draw_options_colors(NUM_ROMS, rom_selected); // Only update colors!
                         // Send command to Tiny85 here
                     }
                 }
                 break;
 
+            // Case 1: JiffyDOS toggle - replace the draw_options call
             case 1: // JiffyDOS toggle
                 if (key == CH_ENTER) {
                     show_status_message(jiffy_selected == 0 ?
@@ -153,12 +155,11 @@ int mainmenu() {
                 }
                 {
                     int old_selected = jiffy_selected;
-                    jiffy_selected = handle_navigation(jiffy_selected, 2, key);
+                    jiffy_selected = handle_selection(jiffy_selected, 2, key);
                     if (old_selected != jiffy_selected) {
-                        draw_options(jiffyOptions, 2, jiffy_selected);
+                        draw_options_colors(2, jiffy_selected); // Only update colors!
                     }
                 }
-                break;
 
             case 2: // Info screen
                 // Info screen is static, just wait for F-key navigation
@@ -227,42 +228,94 @@ void draw_content_area(const char* title, const char* options[], int count, int 
     textcolor(COLOR_WHITE);
     cputsxy(0, 4, title);
     
-    // Draw options using the separated function
-    draw_options(options, count, selected);
+    // Draw options using the initial draw function
+    draw_options_initial(options, count, selected);
     
-    textcolor(COLOR_WHITE);
+    // Add instructions
+    on_screen_instructions();
 }
 
-void draw_options(const char* options[], int count, int selected) {
+void draw_options_initial(const char* options[], int count, int selected) {
     unsigned char i;
     
     // Clear the options area only
     for (i = 0; i < count; i++) {
         gotoxy(2, 6 + i);
-        cclear(SCREENW);
+        cclear(SCREENW - 2);
     }
     
-    // Draw options
+    // Draw all option text (without colors yet)
+    textcolor(COLOR_WHITE);
+    revers(0);
     for (i = 0; i < count; i++) {
         gotoxy(2, 6 + i);
-        
-        if (i == selected) {
-            textcolor(COLOR_YELLOW);
-            revers(1);
-        } else {
-            textcolor(COLOR_WHITE);
-            revers(0);
+        cprintf("%d. %s", i + 1, options[i]);
+    }
+    
+    // Now apply colors for the selected item
+    draw_options_colors(count, selected);
+}
+
+void draw_options_colors(int count, int selected) {
+    static int last_selected = -1;
+    static int last_screen = -1;
+    unsigned char old_x, old_y;
+    
+    // Save current cursor position
+    old_x = wherex();
+    old_y = wherey();
+    
+    // If this is the first call or we switched screens, update all items
+    if (last_selected == -1 || last_screen != current_screen) {
+        unsigned char i;
+        for (i = 0; i < count; i++) {
+            update_option_color(i, i == selected, 6 + i);
+        }
+        last_screen = current_screen;
+    } else {
+        // Only update the previously selected item (turn off highlight)
+        if (last_selected != selected && last_selected < count) {
+            update_option_color(last_selected, 0, 6 + last_selected);
         }
         
-        cprintf("%d. %s", i + 1, options[i]);
-        
+        // Update the newly selected item (turn on highlight)
+        update_option_color(selected, 1, 6 + selected);
+    }
+    
+    last_selected = selected;
+    
+    // Restore cursor position and reset attributes
+    gotoxy(old_x, old_y);
+    textcolor(COLOR_WHITE);
+    revers(0);
+}
+
+void update_option_color(int option_num, int is_selected, int line_y) {
+    unsigned char i;
+    unsigned char ch;
+    unsigned char max_width;
+    
+    gotoxy(2, line_y);
+    
+    if (is_selected) {
+        textcolor(COLOR_YELLOW);
+        revers(1);
+    } else {
+        textcolor(COLOR_WHITE);
         revers(0);
     }
     
-    textcolor(COLOR_WHITE);
+    // Calculate highlighting width: half screen minus front padding
+    max_width = (SCREENW / 2) - 3;
+    
+    // Update the calculated width for the menu option
+    for (i = 0; i < max_width && wherex() < SCREENW; i++) {
+        ch = cpeekc();
+        if (ch == 0) break; // End of screen data
+        cputc(ch);
+    }
 }
-
-int handle_navigation(int selected, int max_items, unsigned char key) {
+int handle_selection(int selected, int max_items, unsigned char key) {
     switch (key) {
         case CH_CURS_UP:
             if (selected > 0) selected--;
@@ -276,16 +329,10 @@ int handle_navigation(int selected, int max_items, unsigned char key) {
 
 void draw_rom_screen(int selected) {
     draw_content_area("Select ROM bank:", romNames, NUM_ROMS, selected);
-    
-    // Add instructions
-    on_screen_instructions();
 }
 
 void draw_jiffy_screen(int selected) {
     draw_content_area("Toggle JiffyDOS setting:", jiffyOptions, 2, selected);
-    
-    // Add instructions
-    on_screen_instructions();
 }
 
 void on_screen_instructions(void) {
@@ -324,7 +371,8 @@ void draw_info_screen(void) {
     cputsxy(2, 16, "UP/DOWN  - Navigate options");
     cputsxy(2, 17, "ENTER    - Select/Apply");
 
-    cputsxy(0, 19, "Thanks to Xander Mol, M Witkowiak");
+    cputsxy(0, 19, "Thanks to:  Jim Brain, Jani");
+    cputsxy(0, 19, "Xander Mol, Maciej Witkowiak");
 }
 
 void draw_util_bar(void) {
