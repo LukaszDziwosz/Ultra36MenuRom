@@ -1,9 +1,6 @@
 # Object files
 *.o
 
-# Build output
-build/
-
 # .DS_Store is a macOS metadata file and doesn’t belong in source control.
 .DS_Store
 src/.DS_Store
