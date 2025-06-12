@@ -1,117 +1,171 @@
 ;
-; Startup code for cc65 (C128 32K cartridge version)
+; Startup code for cc65 (C128 cartridge version)
 ;
 
-.export _exit
-.export __STARTUP__ : absolute = 1      ; Mark as startup
-.import initlib, donelib
-.import zerobss
-.import callmain, pushax
-.import RESTOR, BSOUT, CLRCH
-.import __RAM_START__, __RAM_SIZE__     ; Linker generated
-.import _cgetc, _puts, _memcpy
-.import __DATA_LOAD__, __DATA_RUN__, __DATA_SIZE__
+    .export     _exit
+    .export     __STARTUP__ : absolute = 1      ; Mark as startup
+    .import     initlib, donelib
+    .import     zerobss
+    .import     callmain, pushax, _puts, _cgetc, _memcpy, push0
+    .import     RESTOR, BSOUT, CLRCH
+    .import     __RAM_START__, __RAM_SIZE__
+    .import     __DATA_LOAD__, __DATA_RUN__, __DATA_SIZE__
+    .importzp   ST
 
-.include "zeropage.inc"
-.include "c128.inc"
+    .include    "zeropage.inc"
+    .include    "c128.inc"
+
+; ------------------------------------------------------------------------
+; Constants
+
+; $00 : Do not autostart ROM/cartridge, go to BASIC.
+; $01 : Autostart immediately using the cartridge cold-start vector, BASIC skipped.
+; $FF : Autostart through BASIC cold-start sequence ($FF commonly used for >$01).
+
+CART_MODE = $FF    ; Autostart flag for cartridge
+
+; ------------------------------------------------------------------------
+; Cartridge header and startup code
 
 .segment "STARTUP"
 
-; C128 cartridge header structure
 startup:
-        jmp coldstart       ; cold-start vector at $8000
-        jmp warmstart       ; warm-start vector at $8003
-        .byte $01           ; identifier byte at $8006 (autostart immediately)
-        .byte $43,$42,$4D   ; "CBM" string at $8007-$8009
+    ; C128 cartridge header structure (must be at $8000)
+    jmp     coldstart       ; Cold-start vector at $8000
+    jmp     warmstart       ; Warm-start vector at $8003
+    .byte   CART_MODE       ; Identifier byte at $8006
+    .byte   $43,$42,$4D     ; "CBM" string at $8007-$8009
 
 coldstart:
 warmstart:
-        ; Disable interrupts and set up stack
-        sei
-        ldx #$ff
-        txs 
-        cld 
-        
-        ; Set up C128 processor ports (similar to C64 but C128 specific)
-        lda #$e3
-        sta $01
-        lda #$37
-        sta $00
+    ; Disable interrupts during setup
+    sei
+    ; Initialize stack
+    ldx     #$FF
+    txs
+    cld
 
-        ; Configure MMU for 32K cartridge operation
-        ; BIT 0   : $D000-$DFFF (0 = I/O Block)
-        ; BIT 1   : $4000-$7FFF (1 = RAM)
-        ; BIT 2/3 : $8000-$BFFF (10 = External ROM)
-        ; BIT 4/5 : $C000-$CFFF/$E000-$FFFF (10 = External ROM) - 32K mode
-        ; BIT 6/7 : RAM used. (00 = RAM 0)
-        lda #%00101010     ; Note: bits 4/5 = 10 for External ROM in HIGH area too
-        sta $ff00          ; MMU Configuration Register
+    ; Set up C128 processor ports (similar to C64 but C128 specific)
+    lda #$e3
+    sta $01
+    lda #$37
+    sta $00
 
-        ; Initialize C128 system
-        jsr $ff8a          ; Restore Vectors
-        jsr $ff84          ; Init I/O Devices, Ports & Timers
-        jsr $ff81          ; Init Editor & Video Chips
+    ; Before doing anything else, we have to set up our banking configuration.
+    ; Otherwise, just the lowest 16K are actually RAM. Writing through the ROM
+    ; to the underlying RAM works; but, it is bad style.
 
-        ; Switch to second charset
-        lda #14
-        jsr BSOUT
+    lda     MMU_CR          ; Get current memory configuration...
+    pha                     ; ...and save it for later
+    
+    ; Configure MMU for cartridge operation
+    ; BIT 0   : $D000-$DFFF (0 = I/O Block)
+    ; BIT 1   : $4000-$7FFF (1 = RAM)
+    ; BIT 2/3 : $8000-$BFFF (10 = External ROM)
+    ; BIT 4/5 : $C000-$CFFF/$E000-$FFFF (00 = Kernal ROM)
+    ; BIT 6/7 : RAM used. (00 = RAM 0)
+    lda #%00001010
+    sta     MMU_CR
 
-        ; Clear the BSS data
-        jsr zerobss
+    ; Save the zero-page locations that we need.
+    ldx     #zpspace-1
+L1: lda     sp,x
+    sta     zpsave,x
+    dex
+    bpl     L1
 
-        ; Set up argument stack pointer
-        lda    #<(__RAM_START__ + __RAM_SIZE__)
-        sta sp
-        lda #>(__RAM_START__ + __RAM_SIZE__)
-        sta sp+1
+    ; Initialize BASIC system
+    jsr     $FF8A           ; RESTOR - Restore Kernal Vectors
+    jsr     $FF84           ; IOINIT - Init I/O Devices
+    jsr     $FF81           ; CINT - Init Editor & Video Chips
+    
+    ; Clear channels
+    jsr     CLRCH
+    
+    ; Clear the screen
+    ; lda     #147            ; Clear screen character
+    ; jsr     BSOUT
+    
+    ; Switch to second charset
+    lda     #14
+    jsr     BSOUT
+    
+    ; Clear BSS segment
+    jsr     zerobss
 
-        ; Copy initialized data from ROM to RAM
-        lda #<__DATA_RUN__
-        ldx #>__DATA_RUN__
-        jsr pushax
-        lda #<__DATA_LOAD__
-        ldx #>__DATA_LOAD__
-        jsr pushax
-        lda #<__DATA_SIZE__
-        ldx #>__DATA_SIZE__
-        jsr _memcpy
+    ; Save some system stuff; and, set up the stack.
+    pla                     ; Get MMU setting
+    sta     mmusave
 
-        ; Call module constructors
-        jsr initlib
+    tsx
+    stx     spsave          ; Save the system stack pointer
+    
+    ; Set up argument stack pointer
+    lda    #<(__RAM_START__ + __RAM_SIZE__)
+    sta sp
+    lda #>(__RAM_START__ + __RAM_SIZE__)
+    sta sp+1
 
-        ; Push arguments and call main
-        jsr     callmain
+    ; Copy initialized data from ROM to RAM
+    lda #<__DATA_RUN__
+    ldx #>__DATA_RUN__
+    jsr pushax
+    lda #<__DATA_LOAD__
+    ldx #>__DATA_LOAD__
+    jsr pushax
+    lda #<__DATA_SIZE__
+    ldx #>__DATA_SIZE__
+    jsr _memcpy
+    
+    ; Call module constructors
+    jsr     initlib
+    
+    ; Call main function
+    jsr     callmain
+    
+    ; Fall through to exit
 
-; Back from main (This is also the _exit entry). Run module destructors
+; ------------------------------------------------------------------------
+; Exit routine
+
+; Back from main() [this is also the exit() entry]. Run the module destructors.
+
 _exit:
-    jsr donelib
+    pha                     ; Save the return code on stack
+    jsr     donelib
 
-    ; Display exit message
-    lda #<exitmsg
-    ldx #>exitmsg
-    jsr _puts
-    jsr _cgetc
+    ; Copy back the zero-page stuff.
+    ldx     #zpspace-1
+L2: lda     zpsave,x
+    sta     sp,x
+    dex
+    bpl     L2
 
-    ; Return to BASIC prompt
-    jmp $e422
+    ; Place the program return code into BASIC's status variable.
+    pla
+    sta     ST
 
-.rodata
-exitmsg:
-        .byte "Your program has ended.",13
-        .byte "Press any key to continue...",0
+    ; Reset the stack and the memory configuration.
+    ldx     spsave
+    txs
+    ldx     mmusave
+    stx     MMU_CR
 
-; Pad to end of LOW ROM (16K block)
-.segment "PADLO"
-        .byte 0
+    ; Done.
+    ; I currently cant find safe way to return to BASIC
+    ; For now we will restart the program while I investigate, it could be CC65 issue
+    jmp warmstart
 
-; Optional high ROM code area
-.segment "HICODE"
-; You can place additional code here that will be loaded in $C000-$FEFF area
-; Example:
-high_rom_function:
-        ; Your high ROM code here
-        rts
+; ------------------------------------------------------------------------
+; Data
 
-; Pad to end of HIGH ROM 
-.segment "PADHI"
-        .byte 0
+.segment        "INIT"
+
+zpsave: .res    zpspace
+
+; ------------------------------------------------------------------------
+
+.bss
+
+spsave: .res    1
+mmusave:.res    1
