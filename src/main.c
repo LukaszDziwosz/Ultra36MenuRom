@@ -7,6 +7,8 @@
 #include <c128.h>
 #include <accelerator.h>
 
+#include "vdc_info_screen.h"
+
 // Forward declarations
 int mainmenu();
 void draw_title_bar(void);
@@ -114,7 +116,8 @@ int mainmenu() {
                 show_status_message("Switching to C128 BASIC...");
                 return EXIT_SUCCESS;
             case CH_F6:
-                show_status_message("VDC Info: Not Implemented");
+                current_screen = 3;
+                draw_vdc_info_screen(SCREENW);
                 break;
             case CH_F7:
                 show_status_message("SID Info: Not Implemented");
