@@ -5,7 +5,6 @@
 #include <conio.h>
 #include <peekpoke.h>
 #include <c128.h>
-#include <accelerator.h>
 
 #include "vdc_info_screen.h"
 
@@ -52,7 +51,7 @@ int main(void) {
     // Detect screen width (VIC or VDC)
     if (PEEK(0x00EE) == 79) {
         SCREENW = 80;
-        set_c128_speed(SPEED_FAST);
+        fast();
     } else {
         SCREENW = 40;
     }
@@ -63,7 +62,7 @@ int main(void) {
 
     // Clean up before exit
     clrscr();
-    set_c128_speed(SPEED_SLOW);
+    slow();
     return result;
 }
 
@@ -109,8 +108,8 @@ int mainmenu() {
                 continue;
             case CH_F4:
                 show_status_message("Switching to C64 Mode...");
-                // #define EXEC_BOOT 0x10, #define EXEC_RUN64 0x04 ??
-                // Find a way to reboot in c64 mode
+                sleep(1);
+                c64mode(); // Goodbay folks
                 break;
             case CH_F5:
                 show_status_message("Switching to C128 BASIC...");
