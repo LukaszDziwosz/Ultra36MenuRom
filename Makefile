@@ -18,7 +18,7 @@ TARGET = $(OUTDIR)/$(CARTTYPE).bin
 
 CFG = $(wildcard $(CARTTYPE)/*.cfg)
 ASRC = $(wildcard $(CARTTYPE)/*.s)
-CSRC = src/main.c src/vdc_info_screen.c
+CSRC = src/main.c src/vdc_info_screen.c src/sid_info_screen.c
 
 OBJ = $(ASRC:.s=.o) $(CSRC:.c=.o)
 

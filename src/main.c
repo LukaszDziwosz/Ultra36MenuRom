@@ -7,6 +7,7 @@
 #include <c128.h>
 
 #include "vdc_info_screen.h"
+#include "sid_info_screen.h"
 
 // Forward declarations
 int mainmenu();
@@ -112,14 +113,15 @@ int mainmenu() {
                 c64mode(); // Goodbay folks
                 break;
             case CH_F5:
-                show_status_message("Switching to C128 BASIC...");
+                show_status_message("Restarting the Menu program..");
                 return EXIT_SUCCESS;
             case CH_F6:
                 current_screen = 3;
                 draw_vdc_info_screen(SCREENW);
                 break;
             case CH_F7:
-                show_status_message("SID Info: Not Implemented");
+                current_screen = 4;
+                draw_sid_info_screen(SCREENW);
                 break;
         }
 
@@ -391,7 +393,7 @@ void draw_util_bar(void) {
     revers(1);
     cputs("F5:");
     revers(0);
-    cputs(" Go 128");
+    cputs(" Restart");
     
     // Left side - F6: VDC Info
     gotoxy(1, 24);
