@@ -2,17 +2,16 @@
 OUTDIR = build
 
 # Set cart type (cart16, cart32)
-CARTTYPE = cart128_16
+CARTTYPE = cart128_32
 
-# Custom ROM bank labels
-DEFS = -DROM1_NAME=\"GEOS\" \
-       -DROM2_NAME=\"TASS\" \
-       -DROM3_NAME=\"Servant\" \
-       -DROM4_NAME=\"SuperA\" \
-       -DROM5_NAME=\"SuperB\" \
-       -DROM6_NAME=\"Basic8\" \
-       -DROM7_NAME=\"KeyDOS\" \
-       -DNUM_ROMS=7
+# Custom ROM bank labels (no whitespaces!)
+# Ensure that Bank 1 is empty!, pad 16k banks to 32k
+#DEFS = -DROM_NAMES_INIT='"Empty_Bank","GEOS_1581","GEOS_1571","Servant","StartApps_v1","Basic8","KeyDOS"' \
+#    -DNUM_ROMS=7
+
+# For 16-bank version:
+ DEFS = -DROM_NAMES_INIT='"Empty_Bank","GEOS_1581","GEOS_1571","Servant","StartApps_v1","Basic8","KeyDOS","CP/M_Z80","StartApps_v2","Basic8_Plus","SuperCPU","GEOS_Mega","Utilities","Games_Pack","DevTools"' \
+	 -DNUM_ROMS=15
 
 TARGET = $(OUTDIR)/$(CARTTYPE).bin
 

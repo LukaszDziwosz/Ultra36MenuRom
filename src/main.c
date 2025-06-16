@@ -9,6 +9,11 @@
 #include "vdc_info_screen.h"
 #include "sid_info_screen.h"
 
+#define IO_TINY_COMMAND 0xD700
+// Masks for bit composition
+#define ROM_BANK_MASK 0x0F  // 00001111 - supports 16 banks (0–15)
+#define JIFFY_MASK     0x10 // 00010000 - bit 4
+
 // Forward declarations
 int mainmenu();
 void draw_title_bar(void);
@@ -16,7 +21,8 @@ void draw_fkey_bar(void);
 void draw_content_area(const char* title, const char* options[], int count, int selected);
 void draw_options_initial(const char* options[], int count, int selected);
 void draw_options_colors(int count, int selected);
-void update_option_color(int option_num, int is_selected, int line_y);
+void update_option_color(int option_num, int is_selected, unsigned char line_x, unsigned char line_y);
+void get_item_position(unsigned char item_index, int total_count, unsigned char *x, unsigned char *y);
 int handle_selection(int selected, int max_items, unsigned char key);
 void draw_rom_screen(int selected);
 void draw_jiffy_screen(int selected);
@@ -30,11 +36,7 @@ unsigned char SCREENW;
 int current_screen = 0; // 0=ROM, 1=JiffyDOS, 2=Info
 int previous_screen = 0;
 
-// Menu definitions
-const char* romNames[] = {
-    ROM1_NAME, ROM2_NAME, ROM3_NAME, ROM4_NAME,
-    ROM5_NAME, ROM6_NAME, ROM7_NAME
-};
+const char* romNames[] = {ROM_NAMES_INIT};
 
 const char* jiffyOptions[] = {
     "JiffyDOS ON",
@@ -65,6 +67,19 @@ int main(void) {
     clrscr();
     slow();
     return result;
+}
+
+void send_tiny_config(unsigned char rom_selected, unsigned char jiffy_enabled) {
+    unsigned char actual_bank = rom_selected + 1;  // Map 0-6 → banks 1-7 (8-bank)
+                                                   // or 0-14 → banks 1-15 (16-bank)
+    unsigned char command = 0;
+
+    command |= (actual_bank & ROM_BANK_MASK);
+    if (jiffy_enabled) {
+        command |= JIFFY_MASK;
+    }
+
+    POKE(IO_TINY_COMMAND, command);
 }
 
 int mainmenu() {
@@ -149,7 +164,7 @@ int mainmenu() {
                     rom_selected = handle_selection(rom_selected, NUM_ROMS, key);
                     if (old_selected != rom_selected) {
                         draw_options_colors(NUM_ROMS, rom_selected); // Only update colors!
-                        // Send command to Tiny85 here
+                        send_tiny_config(rom_selected, jiffy_selected == 0);
                     }
                 }
                 break;
@@ -159,7 +174,10 @@ int mainmenu() {
                 if (key == CH_ENTER) {
                     show_status_message(jiffy_selected == 0 ?
                         "JiffyDOS enabled!" : "JiffyDOS disabled!");
-                    // Here you would actually apply the JiffyDOS setting
+                    
+                    // jiffy_selected == 0 → ON → pass 1
+                    // jiffy_selected == 1 → OFF → pass 0
+                    send_tiny_config(rom_selected, jiffy_selected == 0);
                 }
                 {
                     int old_selected = jiffy_selected;
@@ -245,18 +263,42 @@ void draw_content_area(const char* title, const char* options[], int count, int 
 
 void draw_options_initial(const char* options[], int count, int selected) {
     unsigned char i;
+    unsigned char items_per_column;
+    unsigned char use_two_columns = 0;
+    unsigned char max_lines;
+    unsigned char col_x, col_y;
     
-    // Clear the options area only
-    for (i = 0; i < count; i++) {
-        gotoxy(2, 6 + i);
-        cclear(SCREENW - 2);
+    // Determine layout: single column for <=7 ROMs, two columns for >7 ROMs
+    if (count > 7) {
+        use_two_columns = 1;
+        items_per_column = (count + 1) / 2;  // Round up for left column
+    } else {
+        items_per_column = count;
+    }
+    
+    // Clear the options area - need to clear more lines for two columns
+    max_lines = use_two_columns ? items_per_column : count;
+    for (i = 0; i < max_lines; i++) {
+        gotoxy(1, 6 + i);  // Start at x=1 (moved left one space)
+        cclear(SCREENW - 1);
     }
     
     // Draw all option text (without colors yet)
     textcolor(COLOR_WHITE);
     revers(0);
+    
     for (i = 0; i < count; i++) {
-        gotoxy(2, 6 + i);
+        if (use_two_columns && i >= items_per_column) {
+            // Right column
+            col_x = SCREENW / 2 + 1;
+            col_y = 6 + (i - items_per_column);
+        } else {
+            // Left column (or single column)
+            col_x = 1;
+            col_y = 6 + i;
+        }
+        
+        gotoxy(col_x, col_y);
         cprintf("%d. %s", i + 1, options[i]);
     }
     
@@ -268,6 +310,8 @@ void draw_options_colors(int count, int selected) {
     static int last_selected = -1;
     static int last_screen = -1;
     unsigned char old_x, old_y;
+    unsigned char i;
+    unsigned char item_x, item_y;
     
     // Save current cursor position
     old_x = wherex();
@@ -275,19 +319,21 @@ void draw_options_colors(int count, int selected) {
     
     // If this is the first call or we switched screens, update all items
     if (last_selected == -1 || last_screen != current_screen) {
-        unsigned char i;
         for (i = 0; i < count; i++) {
-            update_option_color(i, i == selected, 6 + i);
+            get_item_position(i, count, &item_x, &item_y);
+            update_option_color(i, i == selected, item_x, item_y);
         }
         last_screen = current_screen;
     } else {
         // Only update the previously selected item (turn off highlight)
         if (last_selected != selected && last_selected < count) {
-            update_option_color(last_selected, 0, 6 + last_selected);
+            get_item_position(last_selected, count, &item_x, &item_y);
+            update_option_color(last_selected, 0, item_x, item_y);
         }
         
         // Update the newly selected item (turn on highlight)
-        update_option_color(selected, 1, 6 + selected);
+        get_item_position(selected, count, &item_x, &item_y);
+        update_option_color(selected, 1, item_x, item_y);
     }
     
     last_selected = selected;
@@ -298,12 +344,39 @@ void draw_options_colors(int count, int selected) {
     revers(0);
 }
 
-void update_option_color(int option_num, int is_selected, int line_y) {
+// Helper function to calculate item position
+void get_item_position(unsigned char item_index, int total_count, unsigned char *x, unsigned char *y) {
+    unsigned char items_per_column;
+    unsigned char use_two_columns;
+    
+    use_two_columns = (total_count > 7);
+    
+    if (use_two_columns) {
+        items_per_column = (total_count + 1) / 2;
+        
+        if (item_index >= items_per_column) {
+            // Right column
+            *x = SCREENW / 2 + 1;
+            *y = 6 + (item_index - items_per_column);
+        } else {
+            // Left column
+            *x = 1;
+            *y = 6 + item_index;
+        }
+    } else {
+        // Single column
+        *x = 1;
+        *y = 6 + item_index;
+    }
+}
+
+// Updated update_option_color function with explicit x,y parameters
+void update_option_color(int option_num, int is_selected, unsigned char line_x, unsigned char line_y) {
     unsigned char i;
     unsigned char ch;
     unsigned char max_width;
     
-    gotoxy(2, line_y);
+    gotoxy(line_x, line_y);
     
     if (is_selected) {
         textcolor(COLOR_YELLOW);
@@ -313,8 +386,14 @@ void update_option_color(int option_num, int is_selected, int line_y) {
         revers(0);
     }
     
-    // Calculate highlighting width: half screen minus front padding
-    max_width = (SCREENW / 2) - 3;
+    // Calculate highlighting width based on column layout
+    if (line_x > SCREENW / 2) {
+        // Right column - highlight from right column start to screen end
+        max_width = SCREENW - line_x - 1;
+    } else {
+        // Left column - highlight half screen minus padding
+        max_width = (SCREENW / 2) - 2;
+    }
     
     // Update the calculated width for the menu option
     for (i = 0; i < max_width && wherex() < SCREENW; i++) {
@@ -323,6 +402,7 @@ void update_option_color(int option_num, int is_selected, int line_y) {
         cputc(ch);
     }
 }
+
 int handle_selection(int selected, int max_items, unsigned char key) {
     switch (key) {
         case CH_CURS_UP:
@@ -348,6 +428,7 @@ void on_screen_instructions(void) {
     cputsxy(1, 16, "Use UP/DOWN to select,");
     cputsxy(1, 17, "Press ENTER to apply,");
     cputsxy(1, 18, "Reboot or reset to take effect!");
+    cputsxy(1, 19, "Empty bank ensures clean C128 state");
 }
 
 
@@ -366,21 +447,21 @@ void draw_info_screen(void) {
     cputsxy(0, 4, "Version: 0.0.1 - Author: Lukasz Dziwosz");
 
     cputsxy(0, 6, "Features:");
-    cputsxy(2, 7, "- Switch between 7 ROM banks");
+    cputsxy(2, 7, "- Switch between 8/16 ROM banks");
     cputsxy(2, 8, "- Toggle JiffyDOS on/off");
     cputsxy(2, 9, "- VIC-II and VDC support");
-
     cputsxy(0, 10, "Selection will be remembered.");
-    cputsxy(0, 11, "Hold reset for 3 seconds,");
-    cputsxy(0, 12, "to return to Menu");
+    textcolor(COLOR_YELLOW);
+    cputsxy(0, 12, "Hold reset for 3 seconds,");
+    cputsxy(0, 13, "to return to Menu (Bank 0)");
+    textcolor(COLOR_WHITE);
+    cputsxy(0, 15, "Controls:");
+    cputsxy(2, 16, "F1/F2/F3 - Switch between screens");
+    cputsxy(2, 17, "UP/DOWN  - Navigate options");
+    cputsxy(2, 18, "ENTER    - Select/Apply");
 
-    cputsxy(0, 14, "Controls:");
-    cputsxy(2, 15, "F1/F2/F3 - Switch between screens");
-    cputsxy(2, 16, "UP/DOWN  - Navigate options");
-    cputsxy(2, 17, "ENTER    - Select/Apply");
-
-    cputsxy(0, 19, "Thanks to:  Jim Brain, Jani");
-    cputsxy(0, 20, "Xander Mol, Maciej Witkowiak");
+    cputsxy(0, 20, "Thanks to:  Jim Brain, Jani");
+    cputsxy(0, 21, "Xander Mol, Maciej Witkowiak");
 }
 
 void draw_util_bar(void) {
