@@ -28,6 +28,7 @@ void draw_util_bar(void);
 // Global variables
 unsigned char SCREENW;
 int current_screen = 0; // 0=ROM, 1=JiffyDOS, 2=Info
+int previous_screen = 0;
 
 // Menu definitions
 const char* romNames[] = {
@@ -51,12 +52,11 @@ int main(void) {
 
     // Detect screen width (VIC or VDC)
     if (PEEK(0x00EE) == 79) {
-        SCREENW = 80;
-        fast();
-    } else {
-        SCREENW = 40;
-    }
-
+            SCREENW = 80;
+        } else {
+            SCREENW = 40;
+        }
+    fast();
     clrscr();
 
     result = mainmenu();
@@ -117,11 +117,22 @@ int mainmenu() {
                 return EXIT_SUCCESS;
             case CH_F6:
                 current_screen = 3;
+                draw_fkey_bar();
                 draw_vdc_info_screen(SCREENW);
                 break;
             case CH_F7:
+                previous_screen = current_screen;
                 current_screen = 4;
                 draw_sid_info_screen(SCREENW);
+                current_screen = previous_screen;
+                draw_fkey_bar();
+                draw_util_bar();
+                switch (current_screen) {
+                    case 0: draw_rom_screen(rom_selected); break;
+                    case 1: draw_jiffy_screen(jiffy_selected); break;
+                    case 2: draw_info_screen(); break;
+                    case 3: draw_vdc_info_screen(SCREENW); break;
+                }
                 break;
         }
 
