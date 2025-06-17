@@ -1,3 +1,13 @@
+//   _____  ___________              _______________
+//   __  / / /__  /_  /_____________ __|__  /_  ___/
+//   _  / / /__  /_  __/_  ___/  __ `/__/_ <_  __ \
+//   / /_/ / _  / / /_ _  /   / /_/ /____/ // /_/ /
+//   \____/  /_/  \__/ /_/    \__,_/ /____/ \____/
+// Ultra-36 Rom Switcher for Commodore 128 - C128 Menu Program - sid_info_screen.c
+// Free for personal use.
+// Commercial use or resale (in whole or part) prohibited without permission.
+// (c) 2025 Lukasz Dziwosz / LukasSoft. All Rights Reserved.
+
 #include <conio.h>
 #include <peekpoke.h>
 #include <stdio.h>
@@ -11,18 +21,18 @@
 // Check if a SID chip is present at the given address
 unsigned char is_sid_present(unsigned int base) {
     unsigned char original_val, test_val;
-    
+
     // Test if we can write to and read from a SID register
     // Use register $18 (volume) which should be writable
     original_val = PEEK(base + 0x18);
-    
+
     // Write a test pattern
     POKE(base + 0x18, 0x0F);
     test_val = PEEK(base + 0x18) & 0x0F;  // Only lower 4 bits are valid for volume
-    
+
     // Restore original value
     POKE(base + 0x18, original_val);
-    
+
     // If we can write and read back the expected value, SID is likely present
     return (test_val == 0x0F);
 }
@@ -31,7 +41,7 @@ unsigned char is_sid_present(unsigned int base) {
 unsigned char detect_sid_model(unsigned int base) {
     unsigned char sample, max = 0;
     unsigned int i;
-    
+
     // First check if SID is actually present
     if (!is_sid_present(base)) {
         return 0;  // No SID detected
@@ -44,7 +54,7 @@ unsigned char detect_sid_model(unsigned int base) {
     for (i = 0; i < 25; i++) {
         POKE(base + i, 0x00);
     }
-    
+
     // Wait a bit for things to settle
     for (i = 0; i < 100; i++) {
         // Small delay
@@ -70,7 +80,7 @@ unsigned char detect_sid_model(unsigned int base) {
 
     // Stop oscillator
     POKE(base + 0x12, 0x30);  // 0b00110000
-    
+
     // Clear SID registers again
     for (i = 0; i < 25; i++) {
         POKE(base + i, 0x00);
@@ -93,12 +103,12 @@ void play_sid_filter_sweep(unsigned int base) {
     unsigned char filter_type;
     unsigned char filter_modes[] = {0x10, 0x20, 0x40, 0x50}; // LP, BP, HP, LP+HP (notch)
     const char* filter_names[] = {"Low-pass", "Band-pass", "High-pass", "LP+HP (Notch)"};
-    
+
     // Clear SID first
     for (i = 0; i < 25; i++) {
         POKE(base + i, 0x00);
     }
-    
+
     // Set up voice 1 with sawtooth wave
     POKE(base + 0x00, 0x00);  // freq low - low note for better filter demo
     POKE(base + 0x01, 0x08);  // freq hi - lower frequency
@@ -106,86 +116,86 @@ void play_sid_filter_sweep(unsigned int base) {
     POKE(base + 0x03, 0x08);  // pulse width high
     POKE(base + 0x05, 0x00);  // attack/decay - instant attack
     POKE(base + 0x06, 0xF0);  // sustain/release - full sustain, fast release
-    
+
     // Cycle through different filter types
     for (filter_type = 0; filter_type < 4; filter_type++) {
         // Display current filter type
         gotoxy(0, 15);
         cprintf("Filter: %s           ", filter_names[filter_type]);
-        
+
         // Start the note with sawtooth wave
         POKE(base + 0x04, 0x21);  // gate + sawtooth
-        
+
         // Set filter mode and enable voice 1 in filter
         POKE(base + 0x17, 0x81);  // High resonance + voice 1 filtered
         POKE(base + 0x18, filter_modes[filter_type] | 0x0F);  // Filter mode + volume
-        
+
         // Sweep filter cutoff from low to high
         for (cutoff = 0; cutoff < 2048; cutoff += 8) {
             POKE(base + 0x15, cutoff & 0xFF);        // FC LO
             POKE(base + 0x16, (cutoff >> 8) & 0x07); // FC HI (only 3 bits used)
-            
+
             // Small delay to hear the sweep
             for (i = 0; i < 200; i++) {
                 // Delay loop
             }
         }
-        
+
         // Gate off between filter types
         POKE(base + 0x04, 0x20);  // gate off
-        
+
         // Pause between filter types
         for (i = 0; i < 10000; i++) {
             // Pause
         }
     }
-    
+
     // Demo with different resonance levels
     gotoxy(0, 15);
     cputs("Resonance demo...        ");
-    
+
     // Fixed filter settings for resonance demo
     POKE(base + 0x15, 0x00);  // Low cutoff
     POKE(base + 0x16, 0x02);  //
     POKE(base + 0x18, 0x1F);  // Low-pass filter + volume
-    
+
     // Sweep through resonance levels
     for (i = 0; i < 16; i++) {
         POKE(base + 0x04, 0x21);  // gate + sawtooth
         POKE(base + 0x17, (i << 4) | 0x01);  // Resonance + voice 1 filtered
-        
+
         // Hold each resonance level
         for (cutoff = 0; cutoff < 5000; cutoff++) {
             // Hold note
         }
-        
+
         POKE(base + 0x04, 0x20);  // gate off
-        
+
         // Brief pause
         for (cutoff = 0; cutoff < 1000; cutoff++) {
             // Pause
         }
     }
-    
+
     // Clean up - turn everything off
     for (i = 0; i < 25; i++) {
         POKE(base + i, 0x00);
     }
-    
+
     gotoxy(0, 15);
     cputs("Filter demo complete.    ");
 }
 
 void draw_sub_title_bar(unsigned char screen_width) {
     unsigned char i;
-    
+
     gotoxy(0, 1);
     revers(1);
     textcolor(COLOR_LIGHTRED);
-    
+
     // Fill entire line with spaces
     for (i = 0; i < screen_width; i++) cputc(' ');
- 
+
     cputsxy(0, 1, "SID Info");
     gotoxy(screen_width - 8, 1);
     cputs("F8: Exit");

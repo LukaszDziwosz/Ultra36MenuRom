@@ -1,3 +1,13 @@
+//   _____  ___________              _______________
+//   __  / / /__  /_  /_____________ __|__  /_  ___/
+//   _  / / /__  /_  __/_  ___/  __ `/__/_ <_  __ \
+//   / /_/ / _  / / /_ _  /   / /_/ /____/ // /_/ /
+//   \____/  /_/  \__/ /_/    \__,_/ /____/ \____/
+// Ultra-36 Rom Switcher for Commodore 128 - C128 Menu Program - vdc_info_screen.c
+// Free for personal use.
+// Commercial use or resale (in whole or part) prohibited without permission.
+// (c) 2025 Lukasz Dziwosz / LukasSoft. All Rights Reserved.
+
 #include <conio.h>
 #include <c128.h>
 #include <peekpoke.h>
@@ -91,4 +101,3 @@ void draw_vdc_info_screen(unsigned char screen_width) {
     }
     draw_color_test_bar(9, screen_width);
 }
-
