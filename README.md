@@ -19,6 +19,12 @@ This project provides a bootable function ROM that displays a menu for selecting
 Menu program built entirely in the CC65 toolchain, this system provides a robust, customizable launcher for embedded ROMs.
 
 ⸻
+📸 Screenshots
+
+![Alt text](screenshots/menu40.png)
+![Alt text](screenshots/jiffy80.png)
+![Alt text](screenshots/vdc80.png)
+![Alt text](screenshots/sid80.png)
 
 📂 Project Structure
 
@@ -43,9 +49,10 @@ This repository will contain default compiled bin file in the build folder, you 
 Burn into recommended Flash Eprom. (SST39SF040 16x32KB Banks, SST39SF020A 8x32KB Banks) Note that Menu program will only switch rom banks with Ultra-36 board for U36 socket in Commodore 128.
 
 To compile and run the ROM directly in VICE C128 emulator (MacOs/Linux):
-
+* Windows check Makefile for comments, you need to provide path to WinVice.
+```
 make run
-
+```
 This:
 	•	Compiles src/main.c and startup files
 	•	Produces build/cart128_16.bin or cart128_32.bin (set in Makefile)
