@@ -27,7 +27,7 @@ Menu program built entirely in the CC65 toolchain, this system provides a robust
 ![Alt text](screenshots/sid80.png)
 
 📂 Project Structure
-
+```
 Ultra36MenuRom/
 ├── build/               # Output: compiled ROM binary
 ├── cart128_16/          # Startup code & config for 16K function ROM
@@ -35,7 +35,7 @@ Ultra36MenuRom/
 ├── src/                 # C source code (menu and logic)
 ├── Makefile             # Build and run automation
 └── README.md            # This file
-
+```
 🧰 Requirements
 	•	CC65 compiler toolchain (must be in your PATH)
 	•	VICE emulator with x128
