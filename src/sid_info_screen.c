@@ -20,81 +20,103 @@
 
 // Check if a SID chip is present at the given address
 unsigned char is_sid_present(unsigned int base) {
-    unsigned char original_val, test_val;
+    unsigned char original_val, test_val1, test_val2;
+    unsigned char tests_passed = 0;
 
-    // Test if we can write to and read from a SID register
-    // Use register $18 (volume) which should be writable
+    // Test 1: Volume register (0x18) - ORIGINAL VERSION
     original_val = PEEK(base + 0x18);
-
-    // Write a test pattern
     POKE(base + 0x18, 0x0F);
-    test_val = PEEK(base + 0x18) & 0x0F;  // Only lower 4 bits are valid for volume
-
-    // Restore original value
+    test_val1 = PEEK(base + 0x18) & 0x0F;
+    POKE(base + 0x18, 0x00);
+    test_val2 = PEEK(base + 0x18) & 0x0F;
     POKE(base + 0x18, original_val);
+    
+    if (test_val1 == 0x0F && test_val2 == 0x00) tests_passed++;
 
-    // If we can write and read back the expected value, SID is likely present
-    return (test_val == 0x0F);
+    // Test 2: Attack/Decay register (writable) - ORIGINAL VERSION
+    original_val = PEEK(base + 0x05);
+    POKE(base + 0x05, 0xAA);
+    test_val1 = PEEK(base + 0x05);
+    POKE(base + 0x05, 0x55);
+    test_val2 = PEEK(base + 0x05);
+    POKE(base + 0x05, original_val);
+    
+    if (test_val1 == 0xAA && test_val2 == 0x55) tests_passed++;
+
+    // Test 3: Consistency check - ORIGINAL VERSION
+    test_val1 = PEEK(base + 0x19);  // POT X
+    test_val2 = PEEK(base + 0x1A);  // POT Y
+    
+    if (test_val1 == PEEK(base + 0x19) && test_val2 == PEEK(base + 0x1A)) {
+        tests_passed++;
+    }
+
+    return (tests_passed >= 2);  // Original requirement
 }
 
 // Detect SID model at a given address (returns 0 for none, 1=6581, 2=8580)
 unsigned char detect_sid_model(unsigned int base) {
     unsigned char sample, max = 0;
     unsigned int i;
+    unsigned char attempts;
 
     // First check if SID is actually present
     if (!is_sid_present(base)) {
-        return 0;  // No SID detected
+        return 0;
     }
 
-    // Optional: Turn off screen for more stable reads
-    POKE(0xD011, 0x0B);  // disable badlines (blank screen)
+    // Try detection multiple times
+    for (attempts = 0; attempts < 5; attempts++) {  // More attempts
+        max = 0;
 
-    // Clear SID registers first
-    for (i = 0; i < 25; i++) {
-        POKE(base + i, 0x00);
+        // Turn off screen for stable reads
+        POKE(0xD011, 0x0B);
+
+        // Additional clearing just before test
+        for (i = 0; i < 25; i++) {
+            POKE(base + i, 0x00);
+        }
+
+        // Much longer settling time
+        for (i = 0; i < 2000; i++) {
+            // Long delay for analog settling
+        }
+
+        // Your working oscillator settings
+        POKE(base + 0x0E, 0x20);
+        POKE(base + 0x0F, 0x20);
+        POKE(base + 0x12, 0x31);
+
+        // Even longer oscillator startup time
+        for (i = 0; i < 1000; i++) {
+            // Long startup delay
+        }
+
+        // Sample more extensively
+        for (i = 0; i < 512; ++i) {  // More samples
+            sample = PEEK(base + 0x1B);
+            if (sample > max) max = sample;
+        }
+
+        // Stop oscillator
+        POKE(base + 0x12, 0x30);
+
+        // Clear registers
+        for (i = 0; i < 25; i++) {
+            POKE(base + i, 0x00);
+        }
+
+        // Restore screen
+        POKE(0xD011, 0x1B);
+
+        // If we got a good reading, break early
+        if (max > 0x20) break;  // Lower threshold for "good enough"
     }
 
-    // Wait a bit for things to settle
-    for (i = 0; i < 100; i++) {
-        // Small delay
-    }
-
-    // Init oscillator 3 frequency (2020h)
-    POKE(base + 0x0E, 0x20);
-    POKE(base + 0x0F, 0x20);
-
-    // Enable triangle + sawtooth waveform, gate ON
-    POKE(base + 0x12, 0x31);  // 0b00110001
-
-    // Wait for oscillator to start
-    for (i = 0; i < 50; i++) {
-        // Small delay
-    }
-
-    // Sample $1B (OSC3 output) 256 times
-    for (i = 0; i < 256; ++i) {
-        sample = PEEK(base + 0x1B);
-        if (sample > max) max = sample;
-    }
-
-    // Stop oscillator
-    POKE(base + 0x12, 0x30);  // 0b00110000
-
-    // Clear SID registers again
-    for (i = 0; i < 25; i++) {
-        POKE(base + i, 0x00);
-    }
-
-    // Restore screen
-    POKE(0xD011, 0x1B);  // normal screen on
-
-    // Return SID type based on threshold
-    // 6581 typically has higher background noise/leakage
-    // 8580 has lower noise floor
-    if (max >= 0x80) return 2; // 8580 - cleaner output when oscillating
-    else if (max >= 0x20) return 1; // 6581 - more noisy
-    else return 0; // Probably not a working SID
+    // Your original thresholds
+    if (max >= 0x80) return 2;      // 8580
+    else if (max >= 0x20) return 1; // 6581
+    else return 0;
 }
 
 // Play comprehensive filter sweep test
@@ -255,6 +277,8 @@ void draw_sid_info_screen(unsigned char screen_width) {
     }
 
     // Instructions
+    cputsxy(0, 19, "Note: Detection only works on cold boot!");
+    cputsxy(0, 20, "Power off and hold reset for few seconds");
     if (sid1) cputsxy(0, 10, "Press F1 to play filter sweep on SID 1");
     if (sid2) cputsxy(0, 11, "Press F2 to play filter sweep on SID 2");
     cputsxy(0, 23, "$DE00 PIN 7  MSSIAH / PROPHET64 CARTS");

@@ -64,10 +64,11 @@ int main(void) {
     // Detect screen width (VIC or VDC)
     if (PEEK(0x00EE) == 79) {
         SCREENW = 80;
+        fast();
     } else {
         SCREENW = 40;
     }
-    fast();
+
     clrscr();
 
     result = mainmenu();
@@ -133,7 +134,7 @@ int mainmenu() {
                 continue;
             case CH_F4:
                 show_status_message("Switching to C64 Mode...");
-                sleep(1);
+                clrscr();
                 c64mode(); // Goodbay folks
                 break;
             case CH_F5:
@@ -214,12 +215,12 @@ void draw_title_bar(void) {
     for (i = 0; i < SCREENW; i++) cputc(' ');
 
     // Center the main title
-    gotoxy((SCREENW - 18) / 2, 0);  // 18 is length of "Ultra-36 ROM Menu"
+    gotoxy((SCREENW - 17) / 2, 0);  // 18 is length of "Ultra-36 ROM Menu"
     cputs("Ultra-36 ROM Menu");
 
     // Place version at the right
     gotoxy(SCREENW - 6, 0);  // 6 is length of "v0.0.1"
-    cputs("v0.0.1");
+    cputs("v0.0.2");
 
     revers(0);
 }
@@ -255,7 +256,7 @@ void draw_content_area(const char* title, const char* options[], int count, int 
     unsigned char i;
 
     // Clear content area (lines 3-21) - avoid utility bar at 22-23
-    for (i = 3; i < 22; i++) {
+    for (i = 3; i < 23; i++) {
         cclearxy(0, i, SCREENW);
     }
 
@@ -307,8 +308,7 @@ void draw_options_initial(const char* options[], int count, int selected) {
             col_y = 6 + i;
         }
 
-        gotoxy(col_x, col_y);
-        cprintf("%d. %s", i + 1, options[i]);
+        cputsxy(col_x + 3, col_y, options[i]);
     }
 
     // Now apply colors for the selected item
@@ -381,11 +381,7 @@ void get_item_position(unsigned char item_index, int total_count, unsigned char 
 
 // Updated update_option_color function with explicit x,y parameters
 void update_option_color(int option_num, int is_selected, unsigned char line_x, unsigned char line_y) {
-    unsigned char i;
-    unsigned char ch;
-    unsigned char max_width;
-
-    gotoxy(line_x, line_y);
+    gotoxy(line_x + 3, line_y);  // Match the +3 offset from draw_options_initial
 
     if (is_selected) {
         textcolor(COLOR_YELLOW);
@@ -395,21 +391,16 @@ void update_option_color(int option_num, int is_selected, unsigned char line_x, 
         revers(0);
     }
 
-    // Calculate highlighting width based on column layout
-    if (line_x > SCREENW / 2) {
-        // Right column - highlight from right column start to screen end
-        max_width = SCREENW - line_x - 1;
-    } else {
-        // Left column - highlight half screen minus padding
-        max_width = (SCREENW / 2) - 2;
+    // Just redraw the text instead of using cpeekc/cputc
+    if (current_screen == 0) {
+        cputs(romNames[option_num]);
+    } else if (current_screen == 1) {
+        cputs(jiffyOptions[option_num]);
     }
-
-    // Update the calculated width for the menu option
-    for (i = 0; i < max_width && wherex() < SCREENW; i++) {
-        ch = cpeekc();
-        if (ch == 0) break; // End of screen data
-        cputc(ch);
-    }
+    
+    // Reset attributes
+    revers(0);
+    textcolor(COLOR_WHITE);
 }
 
 int handle_selection(int selected, int max_items, unsigned char key) {
@@ -452,7 +443,7 @@ void draw_info_screen(void) {
     // Draw info content
     textcolor(COLOR_WHITE);
     cputsxy(0, 3, "Ultra-36 ROM Switcher Information");
-    cputsxy(0, 4, "Version: 0.0.1 - Author: Lukasz Dziwosz");
+    cputsxy(0, 4, "Version: 0.0.2 - Author: Lukasz Dziwosz");
 
     cputsxy(0, 6, "Features:");
     cputsxy(2, 7, "- Switch between 8/16 ROM banks");
