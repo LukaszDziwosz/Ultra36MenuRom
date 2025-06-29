@@ -1,5 +1,6 @@
 ;
 ; Startup code for cc65 (C128 cartridge version)
+; Fixed to work as both internal (U36) and external cartridge
 ;
 
     .export     _exit
@@ -58,15 +59,36 @@ warmstart:
     lda     MMU_CR          ; Get current memory configuration...
     pha                     ; ...and save it for later
     
-    ; Configure MMU for cartridge operation
+    ; *** FIXED: Detect if we're running from internal or external position ***
+    ; Check the current MMU configuration to see which ROM bank is active
+    lda     MMU_CR
+    and     #%00001100      ; Isolate bits 2-3 ($8000-$BFFF mapping)
+    cmp     #%00000100      ; Check if internal function ROM (01) is active
+    beq     setup_internal  ; Branch if we're running from internal position
+    
+    ; We're running from external cartridge position
+setup_external:
+    ; Configure MMU for external cartridge operation
     ; BIT 0   : $D000-$DFFF (0 = I/O Block)
     ; BIT 1   : $4000-$7FFF (1 = RAM)
-    ; BIT 2/3 : $8000-$BFFF (10 = External ROM)
+    ; BIT 2/3 : $8000-$BFFF (10 = External ROM) ← Key difference
     ; BIT 4/5 : $C000-$CFFF/$E000-$FFFF (00 = Kernal ROM)
     ; BIT 6/7 : RAM used. (00 = RAM 0)
     lda #%00001010
     sta     MMU_CR
+    jmp     continue_setup
 
+setup_internal:
+    ; Configure MMU for internal function ROM operation
+    ; BIT 0   : $D000-$DFFF (0 = I/O Block)
+    ; BIT 1   : $4000-$7FFF (1 = RAM)
+    ; BIT 2/3 : $8000-$BFFF (01 = Internal ROM) ← Key difference
+    ; BIT 4/5 : $C000-$CFFF/$E000-$FFFF (00 = Kernal ROM)
+    ; BIT 6/7 : RAM used. (00 = RAM 0)
+    lda #%00000110
+    sta     MMU_CR
+
+continue_setup:
     ; Save the zero-page locations that we need.
     ldx     #zpspace-1
 L1: lda     sp,x

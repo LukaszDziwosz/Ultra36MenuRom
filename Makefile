@@ -25,7 +25,7 @@ DEFS = -DROM_NAMES_INIT='"Empty_Bank","GEOS_1581","GEOS_1571","Servant","DiskMas
        -DNUM_ROMS=15
 
 # === Build target ===
-TARGET = $(OUTDIR)/$(CARTTYPE).bin
+TARGET = $(OUTDIR)/ultra36_$(subst cart128_,,$(CARTTYPE)).bin
 
 # === Source files ===
 CFG = $(wildcard $(CARTTYPE)/*.cfg)
@@ -66,3 +66,11 @@ run: $(TARGET)
 clean:
 	rm -f $(OBJ)
 	rm -f $(TARGET)
+
+# === Additional build targets for convenience ===
+.PHONY: 16k 32k
+16k:
+	$(MAKE) CARTTYPE=cart128_16
+
+32k:
+	$(MAKE) CARTTYPE=cart128_32

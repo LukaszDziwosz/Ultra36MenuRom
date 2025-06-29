@@ -1,9 +1,11 @@
 ;
-; Startup code for cc65 (C128 cartridge version)
+; Startup code for cc65 (C128 32K cartridge version)
+; Fixed to work as both internal (U36) and external cartridge
 ;
 
     .export     _exit
     .export     __STARTUP__ : absolute = 1      ; Mark as startup
+    .export     _enable_high_rom, _disable_high_rom  ; Export ROM bank switching functions
     .import     initlib, donelib
     .import     zerobss
     .import     callmain, pushax, _puts, _cgetc, _memcpy, push0
@@ -58,15 +60,44 @@ warmstart:
     lda     MMU_CR          ; Get current memory configuration...
     pha                     ; ...and save it for later
     
-    ; Configure MMU for cartridge operation
+    ; *** FIXED: Detect if we're running from internal or external position ***
+    ; Check the current MMU configuration to see which ROM bank is active
+    lda     MMU_CR
+    and     #%00001100      ; Isolate bits 2-3 ($8000-$BFFF mapping)
+    cmp     #%00000100      ; Check if internal function ROM (01) is active
+    beq     setup_internal_32k  ; Branch if we're running from internal position
+    
+    ; We're running from external cartridge position (32K)
+setup_external_32k:
+    ; Store ROM type for later use
+    lda #0
+    sta romtype             ; 0 = external
+    
+    ; Configure MMU for 32K external cartridge operation
     ; BIT 0   : $D000-$DFFF (0 = I/O Block)
     ; BIT 1   : $4000-$7FFF (1 = RAM)
-    ; BIT 2/3 : $8000-$BFFF (10 = External ROM)
-    ; BIT 4/5 : $C000-$CFFF/$E000-$FFFF (00 = Kernal ROM)
+    ; BIT 2/3 : $8000-$BFFF (10 = External ROM) ← MID bank
+    ; BIT 4/5 : $C000-$FFFF (00 = Kernal ROM) ← Keep Kernal for system calls
     ; BIT 6/7 : RAM used. (00 = RAM 0)
     lda #%00001010
     sta     MMU_CR
+    jmp     continue_setup
 
+setup_internal_32k:
+    ; Store ROM type for later use
+    lda #1
+    sta romtype             ; 1 = internal
+    
+    ; Configure MMU for 32K internal function ROM operation
+    ; BIT 0   : $D000-$DFFF (0 = I/O Block)
+    ; BIT 1   : $4000-$7FFF (1 = RAM)
+    ; BIT 2/3 : $8000-$BFFF (01 = Internal ROM) ← MID bank
+    ; BIT 4/5 : $C000-$FFFF (00 = Kernal ROM) ← Keep Kernal for system calls
+    ; BIT 6/7 : RAM used. (00 = RAM 0)
+    lda #%00000110
+    sta     MMU_CR
+
+continue_setup:
     ; Save the zero-page locations that we need.
     ldx     #zpspace-1
 L1: lda     sp,x
@@ -157,6 +188,44 @@ L2: lda     zpsave,x
     jmp warmstart
 
 ; ------------------------------------------------------------------------
+; High ROM bank switching functions for 32K cartridges
+; These allow your C code to access the upper 16K when needed
+
+_enable_high_rom:
+    ; Enable the HIGH ROM bank ($C000-$FFFF)
+    ; Uses stored ROM type to determine internal vs external
+    pha
+    lda romtype
+    cmp #1                  ; Internal ROM?
+    beq enable_internal_high
+    
+    ; External HIGH ROM
+    lda     MMU_CR
+    and     #%11001111      ; Clear bits 4-5
+    ora     #%00100000      ; Set bits 4-5 to 10 (External ROM)
+    sta     MMU_CR
+    pla
+    rts
+    
+enable_internal_high:
+    ; Internal HIGH ROM
+    lda     MMU_CR
+    and     #%11001111      ; Clear bits 4-5
+    ora     #%00010000      ; Set bits 4-5 to 01 (Internal ROM)
+    sta     MMU_CR
+    pla
+    rts
+
+_disable_high_rom:
+    ; Restore Kernal ROM in HIGH bank ($C000-$FFFF)
+    pha
+    lda     MMU_CR
+    and     #%11001111      ; Clear bits 4-5 (sets to 00 = Kernal ROM)
+    sta     MMU_CR
+    pla
+    rts
+
+; ------------------------------------------------------------------------
 ; Data
 
 .segment        "INIT"
@@ -169,3 +238,4 @@ zpsave: .res    zpspace
 
 spsave: .res    1
 mmusave:.res    1
+romtype:.res    1       ; 0=external, 1=internal (for HIGH bank switching)
