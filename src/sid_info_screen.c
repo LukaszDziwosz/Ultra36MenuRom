@@ -18,6 +18,14 @@
 #define SID2_MSSIAH 0xDE00
 #define SID2_CYNTHCART 0xDF00
 
+// Reset SID chip
+void reset_sid_short(unsigned int base) {
+    unsigned char i;
+    for (i = 0; i < 25; i++) {
+        POKE(base + i, 0x00);
+    }
+}
+
 // Check if a SID chip is present at the given address
 unsigned char is_sid_present(unsigned int base) {
     unsigned char original_val, test_val1, test_val2;
@@ -102,9 +110,7 @@ unsigned char detect_sid_model(unsigned int base) {
         POKE(base + 0x12, 0x30);
 
         // Clear registers
-        for (i = 0; i < 25; i++) {
-            POKE(base + i, 0x00);
-        }
+        reset_sid_short(base);
 
         // Restore screen
         POKE(0xD011, 0x1B);
@@ -126,10 +132,7 @@ void play_sid_filter_sweep(unsigned int base) {
     unsigned char filter_modes[] = {0x10, 0x20, 0x40, 0x50}; // LP, BP, HP, LP+HP (notch)
     const char* filter_names[] = {"Low-pass", "Band-pass", "High-pass", "LP+HP (Notch)"};
 
-    // Clear SID first
-    for (i = 0; i < 25; i++) {
-        POKE(base + i, 0x00);
-    }
+    reset_sid_short(base);
 
     // Set up voice 1 with sawtooth wave
     POKE(base + 0x00, 0x00);  // freq low - low note for better filter demo
@@ -199,10 +202,7 @@ void play_sid_filter_sweep(unsigned int base) {
         }
     }
 
-    // Clean up - turn everything off
-    for (i = 0; i < 25; i++) {
-        POKE(base + i, 0x00);
-    }
+    reset_sid_short(base);
 
     gotoxy(0, 15);
     cputs("Filter demo complete.    ");
