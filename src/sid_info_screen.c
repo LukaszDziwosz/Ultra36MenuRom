@@ -38,22 +38,41 @@ void reset_sid_short(unsigned int base) {
     }
 }
 
+// Returns 1 if SID is likely present, 0 if absent or nosound
+unsigned char sid_sound_present(unsigned int base) {
+    unsigned char orig, test1, test2;
+
+    // Write known value
+    POKE(base + 0x18, 0x0F);
+    test1 = PEEK(base + 0x18) & 0x0F;
+
+    // Write another value
+    POKE(base + 0x18, 0x00);
+    test2 = PEEK(base + 0x18) & 0x0F;
+
+    // Restore (safety)
+    POKE(base + 0x18, 0x00);
+
+    // Check if the chip responded to the changes
+    if ((test1 == 0x0F) && (test2 == 0x00)) {
+        return 1; // Seems like SID
+    }
+
+    return 0; // Not a SID - not writable or floating
+}
+
 // Unified SID detection: presence + model in one routine
 // Returns: 0=none, 1=6581, 2=8580, 3=unknown
 unsigned char detect_sid_model(unsigned int base) {
     unsigned char result;
-    unsigned char i;
     
     // Clear SID first
-    for (i = 0; i < 25; i++) {
-        POKE(base + i, 0x00);
-    }
+    reset_sid_short(base);
     
-    // Quick presence test - try to write/read volume register
+    // Skip fragile read test for SID1 – assume present unless total failure
     POKE(base + 0x18, 0x0F);
-    if ((PEEK(base + 0x18) & 0x0F) != 0x0F) {
-        return SID_NONE;  // No SID chip present
-    }
+    // delay slightly to let bus settle
+    PEEK(base + 0x1B);
     
     // SID is present, now determine model
     POKE(base + 0x18, 0x00);  // Clear volume
@@ -67,9 +86,7 @@ unsigned char detect_sid_model(unsigned int base) {
     result = PEEK(base + 0x1B);  // Read OSC3
     
     // Clean up
-    for (i = 0; i < 25; i++) {
-        POKE(base + i, 0x00);
-    }
+    reset_sid_short(base);
     
     // Model determination (flipped for real hardware)
     if (result & 0x01) return SID_8580;
@@ -77,87 +94,61 @@ unsigned char detect_sid_model(unsigned int base) {
     else return SID_6581;
 }
 
-// Play comprehensive filter sweep test
 void play_sid_filter_sweep(unsigned int base) {
+    const unsigned char voice_base[] = {0x00, 0x07, 0x0E}; // voice 1/2/3
+    const char* voice_names[] = {"Voice 1", "Voice 2", "Voice 3"};
+    const unsigned char voice_mask[] = {0x01, 0x02, 0x04}; // filter enable bits
+    const unsigned char filter_modes[] = {0x10, 0x20, 0x40}; // LP, BP, HP
+    const char* filter_names[] = {"Low-pass", "Band-pass", "High-pass"};
+
+    unsigned char v, f;
     unsigned int cutoff, i;
-    unsigned char filter_type;
-    unsigned char filter_modes[] = {0x10, 0x20, 0x40, 0x50}; // LP, BP, HP, LP+HP (notch)
-    const char* filter_names[] = {"Low-pass", "Band-pass", "High-pass", "LP+HP (Notch)"};
 
     reset_sid_short(base);
 
-    // Set up voice 1 with sawtooth wave
-    POKE(base + 0x00, 0x00);  // freq low - low note for better filter demo
-    POKE(base + 0x01, 0x08);  // freq hi - lower frequency
-    POKE(base + 0x02, 0x00);  // pulse width low
-    POKE(base + 0x03, 0x08);  // pulse width high
-    POKE(base + 0x05, 0x00);  // attack/decay - instant attack
-    POKE(base + 0x06, 0xF0);  // sustain/release - full sustain, fast release
-
-    // Cycle through different filter types
-    for (filter_type = 0; filter_type < 4; filter_type++) {
-        // Display current filter type
+    for (v = 0; v < 3; v++) {
+        // Print voice label
         gotoxy(0, 15);
-        cprintf("Filter: %s           ", filter_names[filter_type]);
+        cprintf("Testing %s...", voice_names[v]);
 
-        // Start the note with sawtooth wave
-        POKE(base + 0x04, 0x21);  // gate + sawtooth
+        // Set voice parameters
+        POKE(base + voice_base[v] + 0, 0x00);  // freq lo
+        POKE(base + voice_base[v] + 1, 0x08);  // freq hi
+        POKE(base + voice_base[v] + 2, 0x00);  // PW lo
+        POKE(base + voice_base[v] + 3, 0x08);  // PW hi
+        POKE(base + voice_base[v] + 5, 0x00);  // AD
+        POKE(base + voice_base[v] + 6, 0xF0);  // SR
 
-        // Set filter mode and enable voice 1 in filter
-        POKE(base + 0x17, 0x81);  // High resonance + voice 1 filtered
-        POKE(base + 0x18, filter_modes[filter_type] | 0x0F);  // Filter mode + volume
+        for (f = 0; f < 3; f++) {
+            gotoxy(0, 16);
+            cprintf("Filter: %s         ", filter_names[f]);
 
-        // Sweep filter cutoff from low to high
-        for (cutoff = 0; cutoff < 2048; cutoff += 8) {
-            POKE(base + 0x15, cutoff & 0xFF);        // FC LO
-            POKE(base + 0x16, (cutoff >> 8) & 0x07); // FC HI (only 3 bits used)
+            // Enable gate + saw on this voice
+            POKE(base + voice_base[v] + 4, 0x21);
 
-            // Small delay to hear the sweep
-            for (i = 0; i < 200; i++) {
-                // Delay loop
+            // Set filter mode + volume
+            POKE(base + 0x18, filter_modes[f] | 0x0F);
+
+            // Enable filtering on current voice, high resonance
+            POKE(base + 0x17, (0xF0) | voice_mask[v]);
+
+            // Sweep filter cutoff
+            for (cutoff = 0; cutoff < 2048; cutoff += 8) {
+                POKE(base + 0x15, cutoff & 0xFF);
+                POKE(base + 0x16, (cutoff >> 8) & 0x07);
+                for (i = 0; i < 200; i++) {}
             }
+
+            // Gate off
+            POKE(base + voice_base[v] + 4, 0x20);
+            for (i = 0; i < 10000; i++) {}
         }
 
-        // Gate off between filter types
-        POKE(base + 0x04, 0x20);  // gate off
-
-        // Pause between filter types
-        for (i = 0; i < 10000; i++) {
-            // Pause
-        }
+        reset_sid_short(base); // clear for next voice
     }
 
-    // Demo with different resonance levels
     gotoxy(0, 15);
-    cputs("Resonance demo...        ");
-
-    // Fixed filter settings for resonance demo
-    POKE(base + 0x15, 0x00);  // Low cutoff
-    POKE(base + 0x16, 0x02);  //
-    POKE(base + 0x18, 0x1F);  // Low-pass filter + volume
-
-    // Sweep through resonance levels
-    for (i = 0; i < 16; i++) {
-        POKE(base + 0x04, 0x21);  // gate + sawtooth
-        POKE(base + 0x17, (i << 4) | 0x01);  // Resonance + voice 1 filtered
-
-        // Hold each resonance level
-        for (cutoff = 0; cutoff < 5000; cutoff++) {
-            // Hold note
-        }
-
-        POKE(base + 0x04, 0x20);  // gate off
-
-        // Brief pause
-        for (cutoff = 0; cutoff < 1000; cutoff++) {
-            // Pause
-        }
-    }
-
-    reset_sid_short(base);
-
-    gotoxy(0, 15);
-    cputs("Filter demo complete.    ");
+    cputs("Filter sweep complete.     ");
 }
 
 void draw_sub_title_bar(unsigned char screen_width) {
@@ -208,22 +199,25 @@ void draw_sid_info_screen(unsigned char screen_width) {
     gotoxy(0, 5);
     cprintf("SID 1: %s", sid_model_name[SID1]);
 
-    // Detect SID 2
-    SID2 = detect_sid_model(SID2_MSSIAH);
-    if (SID2 >= SID_6581 && SID2 <= SID_UNKNOWN) {
-        SID2_ADDR = SID2_MSSIAH;
-        gotoxy(0, 6);
-        cprintf("SID 2: %s at $DE00", sid_model_name[SID2]);
-    } else {
+    // Detect SID 2 - only check if sound responds
+    if (sid_sound_present(SID2_MSSIAH)) {
+        SID2 = detect_sid_model(SID2_MSSIAH);
+        if (SID2 >= SID_6581 && SID2 <= SID_UNKNOWN) {
+            SID2_ADDR = SID2_MSSIAH;
+            gotoxy(0, 6);
+            cprintf("SID 2: %s at $DE00", sid_model_name[SID2]);
+        }
+    } else if (sid_sound_present(SID2_CYNTHCART)) {
         SID2 = detect_sid_model(SID2_CYNTHCART);
         if (SID2 >= SID_6581 && SID2 <= SID_UNKNOWN) {
             SID2_ADDR = SID2_CYNTHCART;
             gotoxy(0, 6);
             cprintf("SID 2: %s at $DF00", sid_model_name[SID2]);
-        } else {
-            gotoxy(0, 6);
-            cputs("SID 2: Not detected");
         }
+    } else {
+        SID2 = SID_NONE;
+        gotoxy(0, 6);
+        cputs("SID 2: Not detected");
     }
 
     // Show SID commentary
