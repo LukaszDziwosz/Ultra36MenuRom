@@ -97,21 +97,18 @@ unsigned char detect_sid_model(unsigned int base) {
 void play_sid_filter_sweep(unsigned int base) {
     const unsigned char voice_base[] = {0x00, 0x07, 0x0E}; // voice 1/2/3
     const char* voice_names[] = {"Voice 1", "Voice 2", "Voice 3"};
-    const unsigned char voice_mask[] = {0x01, 0x02, 0x04}; // filter enable bits
+    const unsigned char voice_mask[] = {0x01, 0x02, 0x04}; // filter voice enable bits
     const unsigned char filter_modes[] = {0x10, 0x20, 0x40}; // LP, BP, HP
     const char* filter_names[] = {"Low-pass", "Band-pass", "High-pass"};
 
-    unsigned char v, f;
+    unsigned char v, f, res;
     unsigned int cutoff, i;
 
-    reset_sid_short(base);
-
     for (v = 0; v < 3; v++) {
-        // Print voice label
         gotoxy(0, 15);
         cprintf("Testing %s...", voice_names[v]);
 
-        // Set voice parameters
+        // Set basic voice parameters
         POKE(base + voice_base[v] + 0, 0x00);  // freq lo
         POKE(base + voice_base[v] + 1, 0x08);  // freq hi
         POKE(base + voice_base[v] + 2, 0x00);  // PW lo
@@ -121,34 +118,48 @@ void play_sid_filter_sweep(unsigned int base) {
 
         for (f = 0; f < 3; f++) {
             gotoxy(0, 16);
-            cprintf("Filter: %s         ", filter_names[f]);
-
-            // Enable gate + saw on this voice
+            cprintf("Filter: %s", filter_names[f]);
+            
+            // Prepare filter mode + full volume
+            POKE(base + 0x18, filter_modes[f] | 0x0F);  // Start at half volume
+            
+            // Start note (sawtooth + gate)
             POKE(base + voice_base[v] + 4, 0x21);
-
-            // Set filter mode + volume
-            POKE(base + 0x18, filter_modes[f] | 0x0F);
-
-            // Enable filtering on current voice, high resonance
-            POKE(base + 0x17, (0xF0) | voice_mask[v]);
-
-            // Sweep filter cutoff
-            for (cutoff = 0; cutoff < 2048; cutoff += 8) {
-                POKE(base + 0x15, cutoff & 0xFF);
-                POKE(base + 0x16, (cutoff >> 8) & 0x07);
-                for (i = 0; i < 200; i++) {}
+            
+            // Let the note play for a bit before sweeping
+           // for (i = 0; i < 5000; i++) {}
+            
+            // Resonance sweep during cutoff sweep
+            for (res = 0; res < 4; res++) {
+                POKE(base + 0x17, (res << 4) | voice_mask[v]);  // Set resonance + voice
+                
+                // Sweep cutoff slowly with more steps
+                for (cutoff = 0; cutoff < 2048; cutoff += 8) {  // Smaller step = slower sweep
+                    POKE(base + 0x15, cutoff & 0xFF);
+                    POKE(base + 0x16, (cutoff >> 8) & 0x07);
+                    for (i = 0; i < 100; i++) {}  // Smaller delay per step
+                }
             }
-
-            // Gate off
-            POKE(base + voice_base[v] + 4, 0x20);
-            for (i = 0; i < 10000; i++) {}
+            
+            // Let the note ring for a bit
+            for (i = 0; i < 5000; i++) {}
+            
+            // Gate off smoothly
+            POKE(base + voice_base[v] + 4, 0x20);  // gate off
+            for (i = 0; i < 5000; i++) {}  // Let release complete
+            
+            // Mute and clear filter
+            POKE(base + 0x17, 0x00);  // no filter
+            POKE(base + 0x18, 0x00);  // mute
+            
+            for (i = 0; i < 10000; i++) {}  // pause between filter types
         }
-
-        reset_sid_short(base); // clear for next voice
+        // clear between voices
+        for (i = 0; i < 20000; i++) {}
     }
-
-    gotoxy(0, 15);
-    cputs("Filter sweep complete.     ");
+    
+    gotoxy(0, 17);
+    cputs("Filter + resonance test complete.");
 }
 
 void draw_sub_title_bar(unsigned char screen_width) {
@@ -233,7 +244,7 @@ void draw_sid_info_screen(unsigned char screen_width) {
     }
 
     // Instructions
-    cputsxy(0, 19, "Model detection works best on cold boot");
+    cputsxy(0, 19, "SID detection works only for real SIDS");
     cputsxy(0, 20, "Unknown = failed to determine SID type");
     if (SID1 >= SID_6581) cputsxy(0, 10, "Press F1 to play filter sweep on SID 1");
     if (SID2 >= SID_6581) cputsxy(0, 11, "Press F2 to play filter sweep on SID 2");
@@ -245,12 +256,18 @@ void draw_sid_info_screen(unsigned char screen_width) {
         key = cgetc();
         if (key == CH_F1 && SID1 >= SID_6581) {
             cputsxy(0, 13, "Playing SID 1 test...");
+            cclearxy(0, 17, screen_width);
             play_sid_filter_sweep(SID1_BASE);
             cclearxy(0, 13, screen_width);
+            cclearxy(0, 15, screen_width);
+            cclearxy(0, 16, screen_width);
         } else if (key == CH_F2 && SID2 >= SID_6581) {
+            cclearxy(0, 17, screen_width);
             cputsxy(0, 14, "Playing SID 2 test...");
             play_sid_filter_sweep(SID2_ADDR);
             cclearxy(0, 14, screen_width);
+            cclearxy(0, 15, screen_width);
+            cclearxy(0, 16, screen_width);
         } else if (key == CH_F8) {
             break; // return to main screen
         }
