@@ -14,9 +14,21 @@
 #include <c128.h>
 #include "sid_info_screen.h"
 
-#define SID1_BASE 0xD400
-#define SID2_MSSIAH 0xDE00
-#define SID2_CYNTHCART 0xDF00
+// SID base addresses
+#define SID1_BASE       0xD400
+#define SID2_MSSIAH     0xDE00
+#define SID2_CYNTHCART  0xDF00
+
+// SID type constants
+#define SID_NONE        0
+#define SID_6581        1
+#define SID_8580        2
+#define SID_UNKNOWN     3
+
+// Global SID state
+unsigned char SID1 = SID_UNKNOWN;
+unsigned char SID2 = SID_NONE;
+unsigned int SID2_ADDR = 0;
 
 // Reset SID chip
 void reset_sid_short(unsigned int base) {
@@ -26,103 +38,43 @@ void reset_sid_short(unsigned int base) {
     }
 }
 
-// Check if a SID chip is present at the given address
-unsigned char is_sid_present(unsigned int base) {
-    unsigned char original_val, test_val1, test_val2;
-    unsigned char tests_passed = 0;
-
-    // Test 1: Volume register (0x18) - ORIGINAL VERSION
-    original_val = PEEK(base + 0x18);
-    POKE(base + 0x18, 0x0F);
-    test_val1 = PEEK(base + 0x18) & 0x0F;
-    POKE(base + 0x18, 0x00);
-    test_val2 = PEEK(base + 0x18) & 0x0F;
-    POKE(base + 0x18, original_val);
-    
-    if (test_val1 == 0x0F && test_val2 == 0x00) tests_passed++;
-
-    // Test 2: Attack/Decay register (writable) - ORIGINAL VERSION
-    original_val = PEEK(base + 0x05);
-    POKE(base + 0x05, 0xAA);
-    test_val1 = PEEK(base + 0x05);
-    POKE(base + 0x05, 0x55);
-    test_val2 = PEEK(base + 0x05);
-    POKE(base + 0x05, original_val);
-    
-    if (test_val1 == 0xAA && test_val2 == 0x55) tests_passed++;
-
-    // Test 3: Consistency check - ORIGINAL VERSION
-    test_val1 = PEEK(base + 0x19);  // POT X
-    test_val2 = PEEK(base + 0x1A);  // POT Y
-    
-    if (test_val1 == PEEK(base + 0x19) && test_val2 == PEEK(base + 0x1A)) {
-        tests_passed++;
-    }
-
-    return (tests_passed >= 2);  // Original requirement
-}
-
-// Detect SID model at a given address (returns 0 for none, 1=6581, 2=8580)
+// Unified SID detection: presence + model in one routine
+// Returns: 0=none, 1=6581, 2=8580, 3=unknown
 unsigned char detect_sid_model(unsigned int base) {
-    unsigned char sample, max = 0;
-    unsigned int i;
-    unsigned char attempts;
-
-    // First check if SID is actually present
-    if (!is_sid_present(base)) {
-        return 0;
+    unsigned char result;
+    unsigned char i;
+    
+    // Clear SID first
+    for (i = 0; i < 25; i++) {
+        POKE(base + i, 0x00);
     }
-
-    // Try detection multiple times
-    for (attempts = 0; attempts < 5; attempts++) {  // More attempts
-        max = 0;
-
-        // Turn off screen for stable reads
-        POKE(0xD011, 0x0B);
-
-        // Additional clearing just before test
-        for (i = 0; i < 25; i++) {
-            POKE(base + i, 0x00);
-        }
-
-        // Much longer settling time
-        for (i = 0; i < 2000; i++) {
-            // Long delay for analog settling
-        }
-
-        // Your working oscillator settings
-        POKE(base + 0x0E, 0x20);
-        POKE(base + 0x0F, 0x20);
-        POKE(base + 0x12, 0x31);
-
-        // Even longer oscillator startup time
-        for (i = 0; i < 1000; i++) {
-            // Long startup delay
-        }
-
-        // Sample more extensively
-        for (i = 0; i < 512; ++i) {  // More samples
-            sample = PEEK(base + 0x1B);
-            if (sample > max) max = sample;
-        }
-
-        // Stop oscillator
-        POKE(base + 0x12, 0x30);
-
-        // Clear registers
-        reset_sid_short(base);
-
-        // Restore screen
-        POKE(0xD011, 0x1B);
-
-        // If we got a good reading, break early
-        if (max > 0x20) break;  // Lower threshold for "good enough"
+    
+    // Quick presence test - try to write/read volume register
+    POKE(base + 0x18, 0x0F);
+    if ((PEEK(base + 0x18) & 0x0F) != 0x0F) {
+        return SID_NONE;  // No SID chip present
     }
-
-    // Your original thresholds
-    if (max >= 0x80) return 2;      // 8580
-    else if (max >= 0x20) return 1; // 6581
-    else return 0;
+    
+    // SID is present, now determine model
+    POKE(base + 0x18, 0x00);  // Clear volume
+    
+    // Model detection sequence
+    POKE(base + 0x0E, 0xFF);  // Voice 3 freq low
+    POKE(base + 0x0F, 0xFF);  // Voice 3 freq high
+    POKE(base + 0x12, 0xFF);  // Test bit + other bits
+    POKE(base + 0x12, 0x20);  // Sawtooth, gate off
+    
+    result = PEEK(base + 0x1B);  // Read OSC3
+    
+    // Clean up
+    for (i = 0; i < 25; i++) {
+        POKE(base + i, 0x00);
+    }
+    
+    // Model determination (flipped for real hardware)
+    if (result & 0x01) return SID_8580;
+    else if (result == 0x00) return SID_UNKNOWN;  // Unclear result
+    else return SID_6581;
 }
 
 // Play comprehensive filter sweep test
@@ -227,11 +179,20 @@ void draw_sub_title_bar(unsigned char screen_width) {
 void draw_sid_info_screen(unsigned char screen_width) {
     unsigned char i;
     unsigned char key;
-    unsigned char sid1;
-    unsigned char sid2;
-    unsigned int sid2_addr = 0;
-    const char* sid_model_name[] = { "Not detected", "MOS 6581", "MOS 8580" };
-    const char* sid_comment[] = { "", "6581! You like noise?", "8580! You like clean?" };
+
+    const char* sid_model_name[] = {
+        "Not detected",    // SID_NONE
+        "MOS 6581",        // SID_6581
+        "MOS 8580",        // SID_8580
+        "Unknown model"    // SID_UNKNOWN
+    };
+
+    const char* sid_comment[] = {
+        "",
+        "6581! You like noise?",
+        "8580! You like clean?",
+        "A mystery SID?!"
+    };
 
     // Clear content area
     for (i = 2; i < 25; i++) {
@@ -243,56 +204,58 @@ void draw_sid_info_screen(unsigned char screen_width) {
     cputsxy(0, 3, "SID Chip Detection");
 
     // Detect SID 1
-    sid1 = detect_sid_model(SID1_BASE);
+    SID1 = detect_sid_model(SID1_BASE);
     gotoxy(0, 5);
-    cprintf("SID 1: %s", sid_model_name[sid1]);
+    cprintf("SID 1: %s", sid_model_name[SID1]);
 
-    // Detect SID 2 at DE00 first
-    sid2 = detect_sid_model(SID2_MSSIAH);
-    if (sid2 == 1 || sid2 == 2) {
-        sid2_addr = SID2_MSSIAH;
+    // Detect SID 2
+    SID2 = detect_sid_model(SID2_MSSIAH);
+    if (SID2 >= SID_6581 && SID2 <= SID_UNKNOWN) {
+        SID2_ADDR = SID2_MSSIAH;
         gotoxy(0, 6);
-        cprintf("SID 2: %s at $DE00", sid_model_name[sid2]);
+        cprintf("SID 2: %s at $DE00", sid_model_name[SID2]);
     } else {
-        // Try DF00 if DE00 failed
-        sid2 = detect_sid_model(SID2_CYNTHCART);
-        if (sid2 == 1 || sid2 == 2) {
-            sid2_addr = SID2_CYNTHCART;
+        SID2 = detect_sid_model(SID2_CYNTHCART);
+        if (SID2 >= SID_6581 && SID2 <= SID_UNKNOWN) {
+            SID2_ADDR = SID2_CYNTHCART;
             gotoxy(0, 6);
-            cprintf("SID 2: %s at $DF00", sid_model_name[sid2]);
+            cprintf("SID 2: %s at $DF00", sid_model_name[SID2]);
         } else {
-            cputsxy(0, 6, "SID 2: Not detected");
+            gotoxy(0, 6);
+            cputs("SID 2: Not detected");
         }
     }
 
-    // Show personality-based comment
-    if ((sid1 == 1 || sid1 == 2) && sid2 == 0) {
+    // Show SID commentary
+    if (SID1 >= SID_6581 && SID2 == SID_NONE) {
         gotoxy(0, 8);
-        cprintf("%s", sid_comment[sid1]);
-    } else if (sid1 && sid2 && sid1 == sid2) {
+        cputs(sid_comment[SID1]);
+    } else if (SID1 >= SID_6581 && SID2 >= SID_6581 && SID1 == SID2) {
         gotoxy(0, 8);
-        cprintf("%s", sid_comment[sid1]);
-    } else if (sid1 && sid2 && sid1 != sid2) {
-        cputsxy(0, 8, "Different SID's? Someone was naughty!");
+        cputs(sid_comment[SID1]);
+    } else if (SID1 >= SID_6581 && SID2 >= SID_6581 && SID1 != SID2) {
+        gotoxy(0, 8);
+        cputs("Different SID's? Someone was naughty!");
     }
 
     // Instructions
-    cputsxy(0, 19, "Note: Detection only works on cold boot!");
-    cputsxy(0, 20, "Power off and hold reset for few seconds");
-    if (sid1) cputsxy(0, 10, "Press F1 to play filter sweep on SID 1");
-    if (sid2) cputsxy(0, 11, "Press F2 to play filter sweep on SID 2");
+    cputsxy(0, 19, "Model detection works best on cold boot");
+    cputsxy(0, 20, "Unknown = failed to determine SID type");
+    if (SID1 >= SID_6581) cputsxy(0, 10, "Press F1 to play filter sweep on SID 1");
+    if (SID2 >= SID_6581) cputsxy(0, 11, "Press F2 to play filter sweep on SID 2");
     cputsxy(0, 23, "$DE00 PIN 7  MSSIAH / PROPHET64 CARTS");
     cputsxy(0, 24, "$DF00 PIN 10 on expansion port CYNTHCART");
 
+    // Key input loop
     while (1) {
         key = cgetc();
-        if (key == CH_F1 && sid1) {
+        if (key == CH_F1 && SID1 >= SID_6581) {
             cputsxy(0, 13, "Playing SID 1 test...");
             play_sid_filter_sweep(SID1_BASE);
             cclearxy(0, 13, screen_width);
-        } else if (key == CH_F2 && sid2) {
+        } else if (key == CH_F2 && SID2 >= SID_6581) {
             cputsxy(0, 14, "Playing SID 2 test...");
-            play_sid_filter_sweep(sid2_addr);
+            play_sid_filter_sweep(SID2_ADDR);
             cclearxy(0, 14, screen_width);
         } else if (key == CH_F8) {
             break; // return to main screen
