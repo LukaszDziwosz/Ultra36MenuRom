@@ -18,6 +18,7 @@
 #include "vdc_info_screen.h"
 #include "sid_info_screen.h"
 
+#define APP_VERSION "0.0.3"
 #define IO_TINY_COMMAND 0xD700
 // Masks for bit composition
 #define ROM_BANK_MASK 0x0F  // 00001111 - supports 16 banks (0–15)
@@ -219,8 +220,8 @@ void draw_title_bar(void) {
     cputs("Ultra-36 ROM Menu");
 
     // Place version at the right
-    gotoxy(SCREENW - 6, 0);  // 6 is length of "v0.0.1"
-    cputs("v0.0.2");
+    gotoxy(SCREENW - 5, 0);  // 5 is length of "0.0.1"
+    cputs(APP_VERSION);
 
     revers(0);
 }
@@ -308,7 +309,7 @@ void draw_options_initial(const char* options[], int count, int selected) {
             col_y = 6 + i;
         }
 
-        cputsxy(col_x + 3, col_y, options[i]);
+        cputsxy(col_x + 1, col_y, options[i]); // here if I change to 1 problem
     }
 
     // Now apply colors for the selected item
@@ -381,7 +382,7 @@ void get_item_position(unsigned char item_index, int total_count, unsigned char 
 
 // Updated update_option_color function with explicit x,y parameters
 void update_option_color(int option_num, int is_selected, unsigned char line_x, unsigned char line_y) {
-    gotoxy(line_x + 3, line_y);  // Match the +3 offset from draw_options_initial
+    gotoxy(line_x + 1, line_y);  // Match the +3 offset from draw_options_initial
 
     if (is_selected) {
         textcolor(COLOR_YELLOW);
@@ -443,8 +444,9 @@ void draw_info_screen(void) {
     // Draw info content
     textcolor(COLOR_WHITE);
     cputsxy(0, 3, "Ultra-36 ROM Switcher Information");
-    cputsxy(0, 4, "Version: 0.0.2 - Author: Lukasz Dziwosz");
-
+    cputsxy(0, 4, "Version: ");
+    cputsxy(9, 4, APP_VERSION);
+    cputsxy(14, 4, " - Author: Lukasz Dziwosz");
     cputsxy(0, 6, "Features:");
     cputsxy(2, 7, "- Switch between 8/16 ROM banks");
     cputsxy(2, 8, "- Toggle JiffyDOS on/off");
