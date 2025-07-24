@@ -17,12 +17,12 @@ CARTTYPE = cart128_32
 # This is independent of CARTTYPE! Bank 0 (first) reserved for this program!
 
 # --- 8-bank version (SST39SF020A, 256KB flash) ---
-#DEFS = -DROM_NAMES_INIT='"Empty_Bank","GEOS_1581","GEOS_1571","Servant","DiskMaster","Basic8","KeyDOS"' \
-#       -DNUM_ROMS=7
+DEFS = -DROM_NAMES_INIT='"Empty_Bank","GEOS_1581","GEOS_1571","Servant","DiskMaster","Basic8","KeyDOS"' \
+       -DNUM_ROMS=7
 
 # --- 16-bank version (SST39SF040, 512KB flash) ---
-DEFS = -DROM_NAMES_INIT='"Empty_Bank","GEOS_1581","GEOS_1571","Servant","DiskMaster","Basic8","KeyDOS","SuperChip","StartApps_v1","StartApps_v2","StartApps_v3","StartApps_v4","StartApps_v5","StartApps_v6","c128_diag"' \
-       -DNUM_ROMS=15
+#DEFS = -DROM_NAMES_INIT='"Empty_Bank","GEOS_1581","GEOS_1571","Servant","DiskMaster","Basic8","KeyDOS","SuperChip","StartApps_v1","StartApps_v2","StartApps_v3","StartApps_v4","StartApps_v5","StartApps_v6","c128_diag"' \
+#       -DNUM_ROMS=15
 
 # === Build target ===
 TARGET = $(OUTDIR)/ultra36_$(subst cart128_,,$(CARTTYPE)).bin

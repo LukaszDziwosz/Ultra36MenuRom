@@ -1,3 +1,9 @@
 {
-    "makefile.configureOnOpen": false
+    "makefile.configureOnOpen": false,
+    "files.associations": {
+        "sid_info_screen.h": "c",
+        "c128.h": "c",
+        "peekpoke.h": "c",
+        "_vdc.h": "c"
+    }
 }

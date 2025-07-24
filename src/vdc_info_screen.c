@@ -11,29 +11,28 @@
 #include <conio.h>
 #include <c128.h>
 #include <peekpoke.h>
-#include "vdc_info_screen.h"
 
-#define VDC_ADDR_REG 0xD600
-#define VDC_DATA_REG 0xD601
+// VDC register numbers
 #define VDC_REG_MEMORY_MODE 28
 #define VDC_REG_HIGH_ADDR   18
 #define VDC_REG_LOW_ADDR    19
 #define VDC_REG_DATA        31
 
-// Helper to write to a VDC register
+// Write to a VDC register
 void vdc_write(unsigned char reg, unsigned char value) {
-    POKE(VDC_ADDR_REG, reg);
-    while (!(PEEK(VDC_ADDR_REG) & 0x80));  // wait for ready
-    POKE(VDC_DATA_REG, value);
+    VDC.ctrl = reg;
+    while (!(VDC.ctrl & 0x80));  // Wait for ready
+    VDC.data = value;
 }
 
-// Helper to read from a VDC register
+// Read from a VDC register
 unsigned char vdc_read(unsigned char reg) {
-    POKE(VDC_ADDR_REG, reg);
-    while (!(PEEK(VDC_ADDR_REG) & 0x80));  // wait for ready
-    return PEEK(VDC_DATA_REG);
+    VDC.ctrl = reg;
+    while (!(VDC.ctrl & 0x80));
+    return VDC.data;
 }
 
+// Draw color bars with names
 void draw_color_test_bar(unsigned char y_offset, unsigned char width) {
     const char* color_names[16] = {
         "Black", "White", "Red", "Cyan",
@@ -41,8 +40,9 @@ void draw_color_test_bar(unsigned char y_offset, unsigned char width) {
         "Orange", "Brown", "LightRed", "Gray1",
         "Gray2", "LightGreen", "LightBlue", "Gray3"
     };
+
     unsigned char i, j;
-    const unsigned char label_width = 9;  // Max name length for alignment
+    const unsigned char label_width = 9;
 
     for (i = 0; i < 16; ++i) {
         unsigned char y = y_offset + i;
@@ -50,10 +50,8 @@ void draw_color_test_bar(unsigned char y_offset, unsigned char width) {
         gotoxy(0, y);
         textcolor(COLOR_WHITE);
         revers(0);
-        // Print fixed-width label (left-aligned, padded with spaces)
         cprintf("%-10s", color_names[i]);
 
-        // Print the color bar after the label
         textcolor(i);
         revers(1);
         for (j = 0; j < width - label_width - 1; ++j) {
@@ -65,10 +63,10 @@ void draw_color_test_bar(unsigned char y_offset, unsigned char width) {
     textcolor(COLOR_WHITE);
 }
 
+// Main VDC info screen
 void draw_vdc_info_screen(unsigned char screen_width) {
     unsigned char oldval, result, i;
 
-    // Clear content area (avoid utility bar)
     for (i = 3; i < 23; i++) {
         cclearxy(0, i, screen_width);
     }
@@ -76,15 +74,15 @@ void draw_vdc_info_screen(unsigned char screen_width) {
     textcolor(COLOR_CYAN);
     cputsxy((screen_width - 20) / 2, 2, "VDC RAM Test Utility");
 
-    // MARK: - VDC RAM check routine
+    // Save original register 28
     oldval = vdc_read(VDC_REG_MEMORY_MODE);
 
-    // Enable 64KB mode by setting bit 4 of reg 28
+    // Enable 64KB mode
     vdc_write(VDC_REG_MEMORY_MODE, oldval | 0x10);
 
     // Write 0x00 to $1FFF
-    vdc_write(VDC_REG_HIGH_ADDR, 0x1F);  // high byte
-    vdc_write(VDC_REG_LOW_ADDR, 0xFF);  // low byte
+    vdc_write(VDC_REG_HIGH_ADDR, 0x1F);
+    vdc_write(VDC_REG_LOW_ADDR, 0xFF);
     vdc_write(VDC_REG_DATA, 0x00);
 
     // Write 0xFF to $9FFF
@@ -97,10 +95,10 @@ void draw_vdc_info_screen(unsigned char screen_width) {
     vdc_write(VDC_REG_LOW_ADDR, 0xFF);
     result = vdc_read(VDC_REG_DATA);
 
-    // Restore original register 28
+    // Restore original register
     vdc_write(VDC_REG_MEMORY_MODE, oldval);
 
-    // Interpret result
+    // Show result
     textcolor(COLOR_WHITE);
     if (result == 0x00) {
         cputsxy(0, 3, "Detected VDC RAM: 64 KB");
@@ -113,5 +111,6 @@ void draw_vdc_info_screen(unsigned char screen_width) {
     } else {
         cputsxy(10, 5, "VIC-II Available Colors:");
     }
+
     draw_color_test_bar(6, screen_width);
 }

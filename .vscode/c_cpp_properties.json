@@ -1,0 +1,23 @@
+{
+  "configurations": [
+    {
+      "name": "macOS",
+      "includePath": [
+        "${workspaceFolder}/src",
+        "/usr/local/share/cc65/include"
+      ],
+      "defines": [],
+      "intelliSenseMode": "macos-clang-arm64",
+      "compilerPath": "/usr/bin/clang",
+      "cStandard": "c89",
+      "browse": {
+        "path": [
+          "${workspaceFolder}/src",
+          "/usr/local/share/cc65/include"
+        ],
+        "limitSymbolsToIncludedHeaders": true
+      }
+    }
+  ],
+  "version": 4
+}
