@@ -19,14 +19,14 @@ This project provides a bootable function ROM that displays a menu for selecting
 Menu program built entirely in the CC65 toolchain, this system provides a robust, customizable launcher for embedded ROMs.
 
 ⸻
-📸 Screenshots
+Screenshots
 
 ![Alt text](screenshots/menu40.png)
 ![Alt text](screenshots/jiffy80.png)
 ![Alt text](screenshots/vdc80.png)
 ![Alt text](screenshots/sid80.png)
 
-📂 Project Structure
+Project Structure
 ```
 Ultra36MenuRom/
 ├── build/               # Output: compiled ROM binary
@@ -36,14 +36,14 @@ Ultra36MenuRom/
 ├── Makefile             # Build and run automation
 └── README.md            # This file
 ```
-🧰 Requirements
+Requirements
 	•	CC65 compiler toolchain (must be in your PATH)
 	•	VICE emulator with x128
 	•	macOS/Linux or WSL (Windows) with GNU make
 
 ⸻
 
-🚀 Building and Running
+Building and Running
 
 This repository will contain default compiled bin file in the build folder, you need to combine this with other roms listed in the Makefile.
 Burn into recommended Flash Eprom. (SST39SF040 16x32KB Banks, SST39SF020A 8x32KB Banks) Note that Menu program will only switch rom banks with Ultra-36 board for U36 socket in Commodore 128.
@@ -66,7 +66,7 @@ To clean build artifacts:
 
 make clean
 
-🧩 Customizing ROM Bank Labels
+Customizing ROM Bank Labels
 
 To change the ROM names shown in the menu, edit the DEFS section of the Makefile:
 
@@ -83,11 +83,12 @@ Use short names (6–10 characters) and escaped quotes as shown.
 
 ⸻
 
-🧠 How It Works
+How It Works
 	•	ROM code is placed at $8000–$BFFF (16K) or $8000–$FFFF (32K)
 	•	Uses the C128 MMU to enable external cartridge bank
 	•	Includes an interactive menu (arrow keys + enter)
 	•	Optionally supports a JiffyDOS toggle in the UI
+	•	Sends framed, CRC-checked commands using CIA2 PB0/PB1 on User Port pins C/D
 	•	All written in C and CC65 ASM using CC65 libraries
 
 The final output cart128_16.bin can be:
@@ -100,7 +101,6 @@ The final output cart128_16.bin can be:
 Created as part of the Ultra-36 internal ROM selector project.
 
 Designed to be simple, customizable, and expandable.
-
 
 
 

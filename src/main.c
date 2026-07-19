@@ -18,8 +18,21 @@
 #include "vdc_info_screen.h"
 #include "sid_info_screen.h"
 
-#define APP_VERSION "0.0.4"
-#define IO_TINY_COMMAND 0xD700
+#define APP_VERSION "0.0.5"
+
+// CIA2 User Port registers and synchronous serial pins
+#define CIA2_PRB 0xDD01
+#define CIA2_DDRB 0xDD03
+#define SERIAL_DATA_MASK 0x01  // User Port C / PB0 -> Tiny PA1
+#define SERIAL_CLOCK_MASK 0x02 // User Port D / PB1 -> Tiny PB2 / INT0
+
+// Ultra36 serial frame: sync, version, opcode, value and CRC-8
+#define SERIAL_SYNC_1 0xA5
+#define SERIAL_SYNC_2 0x5A
+#define SERIAL_VERSION 0x01
+#define SERIAL_OPCODE_BANK 0x01
+#define SERIAL_OPCODE_JIFFY 0x02
+#define SERIAL_FRAME_LENGTH 6
 
 typedef int bool;
 #define true 1
@@ -27,7 +40,9 @@ typedef int bool;
 
 // Forward declarations
 int mainmenu();
-void send_tiny_command(unsigned char command);
+void send_tiny_command(unsigned char opcode, unsigned char value);
+void send_tiny_byte(unsigned char value, unsigned char *port_value, unsigned char isFast);
+unsigned char serial_crc8(const unsigned char *data, unsigned char length);
 void delay_ms(unsigned int ms, unsigned char isFast);
 void draw_title_bar(void);
 void draw_fkey_bar(void);
@@ -99,33 +114,78 @@ void delay_ms(unsigned int ms, unsigned char isFast)
     }
 }
 
-void send_tiny_command(unsigned char command)
+void send_tiny_command(unsigned char opcode, unsigned char value)
 {
+    unsigned char frame[SERIAL_FRAME_LENGTH];
+    unsigned char saved_port;
+    unsigned char saved_ddr;
+    unsigned char port_value;
     unsigned char i;
     unsigned char isFast = (SCREENW == 80); // 2 MHz = fast
 
-    for (i = 0; i < command; i++)
+    frame[0] = SERIAL_SYNC_1;
+    frame[1] = SERIAL_SYNC_2;
+    frame[2] = SERIAL_VERSION;
+    frame[3] = opcode;
+    frame[4] = value;
+    frame[5] = serial_crc8(&frame[2], 3);
+
+    saved_port = PEEK(CIA2_PRB);
+    saved_ddr = PEEK(CIA2_DDRB);
+
+    // Put both lines in their idle-high state before enabling the outputs.
+    port_value = saved_port | SERIAL_DATA_MASK | SERIAL_CLOCK_MASK;
+    POKE(CIA2_PRB, port_value);
+    POKE(CIA2_DDRB, saved_ddr | SERIAL_DATA_MASK | SERIAL_CLOCK_MASK);
+    delay_ms(1, isFast);
+
+    for (i = 0; i < SERIAL_FRAME_LENGTH; i++)
     {
-        POKE(IO_TINY_COMMAND, 0xFF);
-        if (isFast)
-        {
-            bgcolor(COLOR_RED);
-        }
-        else
-        {
-            bordercolor(COLOR_RED);
-        }
-        delay_ms(2, isFast); // ~2 ms visible flash
-        if (isFast)
-        {
-            bgcolor(COLOR_GRAY2);
-        }
-        else
-        {
-            bordercolor(COLOR_GRAY1);
-        }
-        delay_ms(2, isFast); // ~2 ms spacing
+        send_tiny_byte(frame[i], &port_value, isFast);
     }
+
+    // Restore the CIA2 state so software using other User Port pins is not
+    // disturbed after the short transmission.
+    POKE(CIA2_PRB, saved_port);
+    POKE(CIA2_DDRB, saved_ddr);
+}
+
+void send_tiny_byte(unsigned char value, unsigned char *port_value, unsigned char isFast)
+{
+    unsigned char mask;
+
+    for (mask = 0x80; mask != 0; mask >>= 1)
+    {
+        // Data changes only while clock is low. The Tiny samples on rising edge.
+        *port_value &= (unsigned char)~SERIAL_CLOCK_MASK;
+        POKE(CIA2_PRB, *port_value);
+
+        if (value & mask)
+            *port_value |= SERIAL_DATA_MASK;
+        else
+            *port_value &= (unsigned char)~SERIAL_DATA_MASK;
+        POKE(CIA2_PRB, *port_value);
+        delay_ms(1, isFast);
+
+        *port_value |= SERIAL_CLOCK_MASK;
+        POKE(CIA2_PRB, *port_value);
+        delay_ms(1, isFast);
+    }
+}
+
+unsigned char serial_crc8(const unsigned char *data, unsigned char length)
+{
+    unsigned char crc = 0;
+    unsigned char i;
+
+    while (length--)
+    {
+        crc ^= *data++;
+        for (i = 0; i < 8; i++)
+            crc = (crc & 0x80) ? (crc << 1) ^ 0x07 : crc << 1;
+    }
+
+    return crc;
 }
 
 int mainmenu()
@@ -221,7 +281,7 @@ int mainmenu()
                 char buffer[40];
                 sprintf(buffer, "%s selected", romNames[rom_selected]);
                 show_status_message(buffer);
-                send_tiny_command(rom_selected + 4); // Bank 0 becomes 1, up to 16
+                send_tiny_command(SERIAL_OPCODE_BANK, rom_selected + 1);
             }
             {
                 int old_selected = rom_selected;
@@ -241,7 +301,7 @@ int mainmenu()
 
                 // jiffy_selected == 0 → ON → pass 1
                 // jiffy_selected == 1 → OFF → pass 0
-                send_tiny_command(jiffy_selected == 0 ? 2 : 3);
+                send_tiny_command(SERIAL_OPCODE_JIFFY, jiffy_selected == 0 ? 1 : 0);
             }
             {
                 int old_selected = jiffy_selected;
