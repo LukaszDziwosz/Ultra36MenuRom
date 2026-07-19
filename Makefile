@@ -13,16 +13,17 @@ OUTDIR = build
 CARTTYPE = cart128_32
 
 # === ROM Bank Definitions ===
-# ROM bank count is controlled fully by ROM_NAMES_INIT and NUM_ROMS.
-# This is independent of CARTTYPE! Bank 0 (first) reserved for this program!
+# Supply only user ROM names here. Bank 0 is this menu program and Bank 1 is
+# always Empty_Bank, which is hardcoded in src/main.c so it cannot be removed.
+# The bank count is independent of CARTTYPE.
 
 # --- 8-bank version (SST39SF020A, 256KB flash) ---
-#DEFS = -DROM_NAMES_INIT='"Empty_Bank","GEOS_1581","GEOS_1571","Servant","DiskMaster","Basic8","KeyDOS"' \
-       -DNUM_ROMS=7
+#DEFS = -DUSER_ROM_NAMES_INIT='"GEOS_1581","GEOS_1571","Servant","DiskMaster","Basic8","KeyDOS"' \
+#       -DNUM_USER_ROMS=6
 
 # --- 16-bank version (SST39SF040, 512KB flash) ---
-DEFS = -DROM_NAMES_INIT='"Empty_Bank","GEOS_1581","GEOS_1571","Servant","DiskMaster","Basic8","KeyDOS","SuperChip","StartApps_v1","StartApps_v2","StartApps_v3","StartApps_v4","StartApps_v5","StartApps_v6","c128_diag"' \
-       -DNUM_ROMS=15
+DEFS = -DUSER_ROM_NAMES_INIT='"GEOS_1581","GEOS_1571","Servant","DiskMaster","Basic8","KeyDOS","SuperChip","StartApps_v1","StartApps_v2","StartApps_v3","StartApps_v4","StartApps_v5","StartApps_v6","c128_diag"' \
+       -DNUM_USER_ROMS=14
 
 # === Build target ===
 TARGET = $(OUTDIR)/ultra36_$(subst cart128_,,$(CARTTYPE)).bin

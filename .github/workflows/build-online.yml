@@ -1,0 +1,67 @@
+name: Build online menu ROM
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Correlation ID supplied by the website API
+        required: false
+        default: manual
+        type: string
+      bank_count:
+        description: Total number of 32KB banks in the final image
+        required: true
+        default: "8"
+        type: choice
+        options:
+          - "8"
+          - "16"
+      names_json:
+        description: JSON array containing exactly 6 or 14 user ROM names
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out firmware source
+        uses: actions/checkout@v6
+
+      - name: Install CC65
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes cc65
+
+      - name: Validate names and generate configuration
+        env:
+          ROM_BANK_COUNT: ${{ inputs.bank_count }}
+          ROM_NAMES_JSON: ${{ inputs.names_json }}
+        run: |
+          python3 scripts/generate_online_config.py \
+            --bank-count "$ROM_BANK_COUNT" \
+            --names-json "$ROM_NAMES_JSON" \
+            --output src/online_rom_config.h
+
+      - name: Build 32KB menu ROM
+        run: make 'DEFS=-DONLINE_BUILD'
+
+      - name: Verify output
+        run: |
+          test "$(stat --format=%s build/ultra36_32.bin)" -eq 32768
+          sha256sum build/ultra36_32.bin > build/ultra36_32.bin.sha256
+
+      - name: Upload menu ROM
+        uses: actions/upload-artifact@v7
+        with:
+          name: ultra36-menu-${{ github.run_id }}
+          path: |
+            build/ultra36_32.bin
+            build/ultra36_32.bin.sha256
+          if-no-files-found: error
+          retention-days: 1

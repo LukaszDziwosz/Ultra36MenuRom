@@ -68,18 +68,43 @@ make clean
 
 Customizing ROM Bank Labels
 
-To change the ROM names shown in the menu, edit the DEFS section of the Makefile:
+To change the user ROM names shown in the menu, edit the DEFS section of the
+Makefile. Bank 0 contains the menu program and Bank 1 is always the essential
+`Empty_Bank`; both are fixed and are not part of this list.
 
-DEFS = -DROM_NAMES_INIT='"Empty_Bank","GEOS_1581","GEOS_1571","Servant","DiskMaster","Basic8","KeyDOS"' \
-    -DNUM_ROMS=7
+DEFS = -DUSER_ROM_NAMES_INIT='"GEOS_1581","GEOS_1571","Servant","DiskMaster","Basic8","KeyDOS"' \
+    -DNUM_USER_ROMS=6
 
 ### For 16-bank version:
- DEFS = -DROM_NAMES_INIT='"Empty_Bank","GEOS_1581","GEOS_1571","Servant","DiskMaster","Basic8","KeyDOS","SuperChip","StartApps_v1","StartApps_v2","StartApps_v3","StartApps_v4","StartApps_v5","StartApps_v6","c128_diag"' \
-     -DNUM_ROMS=15
+ DEFS = -DUSER_ROM_NAMES_INIT='"GEOS_1581","GEOS_1571","Servant","DiskMaster","Basic8","KeyDOS","SuperChip","StartApps_v1","StartApps_v2","StartApps_v3","StartApps_v4","StartApps_v5","StartApps_v6","c128_diag"' \
+     -DNUM_USER_ROMS=14
 
-You may use up to 6/14 labels. Bank 0 is reserved for the Ultra-36 menu itself. Bank 1 should remain empty to ensure clean boot and compatibility with external cartridges.
+Use exactly 6 labels for an 8-bank image or 14 labels for a 16-bank image.
+`Empty_Bank` is hardcoded as the first selectable menu entry. The corresponding
+physical Bank 1 must still be filled with an empty 32KB image to ensure clean
+boot and compatibility with external cartridges.
 
 Use short names (6–10 characters) and escaped quotes as shown.
+
+### Online builds
+
+The `Build online menu ROM` GitHub Actions workflow can be started manually or
+through the GitHub workflow-dispatch API. It accepts:
+
+- `request_id`: an optional website correlation ID
+- `bank_count`: `8` or `16`
+- `names_json`: a JSON array containing exactly 6 or 14 user ROM names
+
+For example, an 8-bank build uses:
+
+```json
+["GEOS_1581", "GEOS_1571", "Servant", "DiskMaster", "Basic8", "KeyDOS"]
+```
+
+Names are limited to 16 printable ASCII characters. The workflow generates a
+temporary header, builds Bank 0 as `ultra36_32.bin`, verifies that it is exactly
+32KB, and uploads the binary plus its SHA-256 checksum as a one-day artifact.
+`Empty_Bank` is added by the firmware and must not be included in `names_json`.
 
 ⸻
 
@@ -101,7 +126,5 @@ The final output cart128_16.bin can be:
 Created as part of the Ultra-36 internal ROM selector project.
 
 Designed to be simple, customizable, and expandable.
-
-
 
 

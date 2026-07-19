@@ -64,7 +64,28 @@ unsigned char SCREENW;
 int current_screen = 0; // 0=ROM, 1=JiffyDOS, 2=Info
 int previous_screen = 0;
 
-const char *romNames[] = {ROM_NAMES_INIT};
+#ifdef ONLINE_BUILD
+#include "online_rom_config.h"
+#endif
+
+#ifndef USER_ROM_NAMES_INIT
+#error USER_ROM_NAMES_INIT must define the 6 or 14 user-selectable ROM names
+#endif
+
+#ifndef NUM_USER_ROMS
+#error NUM_USER_ROMS must be set to 6 or 14
+#endif
+
+#if NUM_USER_ROMS != 6 && NUM_USER_ROMS != 14
+#error NUM_USER_ROMS must be exactly 6 (8 banks) or 14 (16 banks)
+#endif
+
+/*
+ * Bank 0 contains this menu program. Bank 1 must always be the empty bank,
+ * so its label is a firmware invariant rather than part of build input.
+ */
+#define NUM_ROMS (NUM_USER_ROMS + 1)
+const char *romNames[] = {"Empty_Bank", USER_ROM_NAMES_INIT};
 
 const char *jiffyOptions[] = {
     "JiffyDOS ON",
