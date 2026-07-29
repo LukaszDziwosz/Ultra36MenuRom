@@ -18,7 +18,7 @@
 #include "vdc_info_screen.h"
 #include "sid_info_screen.h"
 
-#define APP_VERSION "0.0.5"
+#define APP_VERSION "0.0.6"
 
 // CIA2 User Port registers and synchronous serial pins
 #define CIA2_PRB 0xDD01
