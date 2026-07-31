@@ -18,7 +18,7 @@
 #include "vdc_info_screen.h"
 #include "sid_info_screen.h"
 
-#define APP_VERSION "0.0.6"
+#define APP_VERSION "0.0.7"
 
 // CIA2 User Port registers and synchronous serial pins
 #define CIA2_PRB 0xDD01
@@ -33,6 +33,7 @@
 #define SERIAL_OPCODE_BANK 0x01
 #define SERIAL_OPCODE_JIFFY 0x02
 #define SERIAL_FRAME_LENGTH 6
+#define SERIAL_ACK_TIMEOUT_MS 250
 
 typedef int bool;
 #define true 1
@@ -40,7 +41,7 @@ typedef int bool;
 
 // Forward declarations
 int mainmenu();
-void send_tiny_command(unsigned char opcode, unsigned char value);
+bool send_tiny_command(unsigned char opcode, unsigned char value);
 void send_tiny_byte(unsigned char value, unsigned char *port_value, unsigned char isFast);
 unsigned char serial_crc8(const unsigned char *data, unsigned char length);
 void delay_ms(unsigned int ms, unsigned char isFast);
@@ -135,13 +136,15 @@ void delay_ms(unsigned int ms, unsigned char isFast)
     }
 }
 
-void send_tiny_command(unsigned char opcode, unsigned char value)
+bool send_tiny_command(unsigned char opcode, unsigned char value)
 {
     unsigned char frame[SERIAL_FRAME_LENGTH];
     unsigned char saved_port;
     unsigned char saved_ddr;
     unsigned char port_value;
     unsigned char i;
+    bool acknowledged = false;
+    bool dataReleased = false;
     unsigned char isFast = (SCREENW == 80); // 2 MHz = fast
 
     frame[0] = SERIAL_SYNC_1;
@@ -165,10 +168,56 @@ void send_tiny_command(unsigned char opcode, unsigned char value)
         send_tiny_byte(frame[i], &port_value, isFast);
     }
 
+    // Finish with a low clock, then release PB0 so the Tiny can safely pull
+    // the shared data line low to acknowledge a validated command.
+    port_value &= (unsigned char)~SERIAL_CLOCK_MASK;
+    POKE(CIA2_PRB, port_value);
+    POKE(CIA2_DDRB,
+         (saved_ddr | SERIAL_CLOCK_MASK) &
+         (unsigned char)~SERIAL_DATA_MASK);
+
+    // A frame may end with a zero CRC bit. First observe the released line
+    // return high, then treat a subsequent low as the Tiny's ACK.
+    for (i = 0; i < 50; i++)
+    {
+        if (PEEK(CIA2_PRB) & SERIAL_DATA_MASK)
+        {
+            dataReleased = true;
+            break;
+        }
+        delay_ms(1, isFast);
+    }
+
+    if (dataReleased)
+    {
+        for (i = 0; i < SERIAL_ACK_TIMEOUT_MS; i++)
+        {
+            if ((PEEK(CIA2_PRB) & SERIAL_DATA_MASK) == 0)
+            {
+                acknowledged = true;
+                break;
+            }
+            delay_ms(1, isFast);
+        }
+    }
+
+    // If ACK was seen, let the Tiny release PA1 before restoring CIA2.
+    if (acknowledged)
+    {
+        for (i = 0; i < 100; i++)
+        {
+            if (PEEK(CIA2_PRB) & SERIAL_DATA_MASK)
+                break;
+            delay_ms(1, isFast);
+        }
+    }
+
     // Restore the CIA2 state so software using other User Port pins is not
     // disturbed after the short transmission.
     POKE(CIA2_PRB, saved_port);
     POKE(CIA2_DDRB, saved_ddr);
+
+    return acknowledged;
 }
 
 void send_tiny_byte(unsigned char value, unsigned char *port_value, unsigned char isFast)
@@ -300,9 +349,12 @@ int mainmenu()
             if (key == CH_ENTER)
             {
                 char buffer[40];
-                sprintf(buffer, "%s selected", romNames[rom_selected]);
+                sprintf(buffer, "Sending %s...", romNames[rom_selected]);
                 show_status_message(buffer);
-                send_tiny_command(SERIAL_OPCODE_BANK, rom_selected + 1);
+                if (send_tiny_command(SERIAL_OPCODE_BANK, rom_selected + 1))
+                    show_status_message("Saved. Reset to activate ROM bank.");
+                else
+                    show_status_message("ERROR: Ultra36 did not acknowledge.");
             }
             {
                 int old_selected = rom_selected;
@@ -318,11 +370,14 @@ int mainmenu()
         case 1: // JiffyDOS toggle
             if (key == CH_ENTER)
             {
-                show_status_message(jiffy_selected == 0 ? "JiffyDOS enabled!" : "JiffyDOS disabled!");
+                show_status_message("Sending JiffyDOS setting...");
 
                 // jiffy_selected == 0 → ON → pass 1
                 // jiffy_selected == 1 → OFF → pass 0
-                send_tiny_command(SERIAL_OPCODE_JIFFY, jiffy_selected == 0 ? 1 : 0);
+                if (send_tiny_command(SERIAL_OPCODE_JIFFY, jiffy_selected == 0 ? 1 : 0))
+                    show_status_message("Saved. Reset to apply JiffyDOS.");
+                else
+                    show_status_message("ERROR: Ultra36 did not acknowledge.");
             }
             {
                 int old_selected = jiffy_selected;
