@@ -18,7 +18,7 @@
 #include "vdc_info_screen.h"
 #include "sid_info_screen.h"
 
-#define APP_VERSION "0.0.7"
+#define APP_VERSION "0.0.8"
 
 // CIA2 User Port registers and synchronous serial pins
 #define CIA2_PRB 0xDD01
@@ -26,14 +26,14 @@
 #define SERIAL_DATA_MASK 0x01  // User Port C / PB0 -> Tiny PA1
 #define SERIAL_CLOCK_MASK 0x02 // User Port D / PB1 -> Tiny PB2 / INT0
 
-// Ultra36 serial frame: sync, version, opcode, value and CRC-8
-#define SERIAL_SYNC_1 0xA5
-#define SERIAL_SYNC_2 0x5A
-#define SERIAL_VERSION 0x01
+// Ultra36 armed one-byte command protocol
 #define SERIAL_OPCODE_BANK 0x01
 #define SERIAL_OPCODE_JIFFY 0x02
-#define SERIAL_FRAME_LENGTH 6
-#define SERIAL_ACK_TIMEOUT_MS 250
+#define SERIAL_BANK_PREFIX 0xA0
+#define SERIAL_JIFFY_PREFIX 0xB0
+#define SERIAL_ARM_DELAY 100
+#define SERIAL_HALF_CYCLE_DELAY 10
+#define SERIAL_ACK_TIMEOUT_STEPS 1000
 
 typedef int bool;
 #define true 1
@@ -43,7 +43,6 @@ typedef int bool;
 int mainmenu();
 bool send_tiny_command(unsigned char opcode, unsigned char value);
 void send_tiny_byte(unsigned char value, unsigned char *port_value, unsigned char isFast);
-unsigned char serial_crc8(const unsigned char *data, unsigned char length);
 void delay_ms(unsigned int ms, unsigned char isFast);
 void draw_title_bar(void);
 void draw_fkey_bar(void);
@@ -138,35 +137,37 @@ void delay_ms(unsigned int ms, unsigned char isFast)
 
 bool send_tiny_command(unsigned char opcode, unsigned char value)
 {
-    unsigned char frame[SERIAL_FRAME_LENGTH];
+    unsigned char command;
     unsigned char saved_port;
     unsigned char saved_ddr;
     unsigned char port_value;
-    unsigned char i;
+    unsigned int timeout;
     bool acknowledged = false;
     bool dataReleased = false;
     unsigned char isFast = (SCREENW == 80); // 2 MHz = fast
 
-    frame[0] = SERIAL_SYNC_1;
-    frame[1] = SERIAL_SYNC_2;
-    frame[2] = SERIAL_VERSION;
-    frame[3] = opcode;
-    frame[4] = value;
-    frame[5] = serial_crc8(&frame[2], 3);
+    if (opcode == SERIAL_OPCODE_BANK && value >= 1 && value <= 15)
+        command = SERIAL_BANK_PREFIX | value;
+    else if (opcode == SERIAL_OPCODE_JIFFY && value <= 1)
+        command = SERIAL_JIFFY_PREFIX | value;
+    else
+        return false;
 
     saved_port = PEEK(CIA2_PRB);
     saved_ddr = PEEK(CIA2_DDRB);
 
-    // Put both lines in their idle-high state before enabling the outputs.
+    // Start from the released high state, then hold the clock low long enough
+    // to arm and reset the Tiny's one-byte receiver.
     port_value = saved_port | SERIAL_DATA_MASK | SERIAL_CLOCK_MASK;
     POKE(CIA2_PRB, port_value);
     POKE(CIA2_DDRB, saved_ddr | SERIAL_DATA_MASK | SERIAL_CLOCK_MASK);
-    delay_ms(1, isFast);
+    delay_ms(SERIAL_HALF_CYCLE_DELAY, isFast);
 
-    for (i = 0; i < SERIAL_FRAME_LENGTH; i++)
-    {
-        send_tiny_byte(frame[i], &port_value, isFast);
-    }
+    port_value &= (unsigned char)~SERIAL_CLOCK_MASK;
+    POKE(CIA2_PRB, port_value);
+    delay_ms(SERIAL_ARM_DELAY, isFast);
+
+    send_tiny_byte(command, &port_value, isFast);
 
     // Finish with a low clock, then release PB0 so the Tiny can safely pull
     // the shared data line low to acknowledge a validated command.
@@ -176,9 +177,9 @@ bool send_tiny_command(unsigned char opcode, unsigned char value)
          (saved_ddr | SERIAL_CLOCK_MASK) &
          (unsigned char)~SERIAL_DATA_MASK);
 
-    // A frame may end with a zero CRC bit. First observe the released line
+    // A command may end with a zero bit. First observe the released line
     // return high, then treat a subsequent low as the Tiny's ACK.
-    for (i = 0; i < 50; i++)
+    for (timeout = 0; timeout < 200; timeout++)
     {
         if (PEEK(CIA2_PRB) & SERIAL_DATA_MASK)
         {
@@ -190,7 +191,7 @@ bool send_tiny_command(unsigned char opcode, unsigned char value)
 
     if (dataReleased)
     {
-        for (i = 0; i < SERIAL_ACK_TIMEOUT_MS; i++)
+        for (timeout = 0; timeout < SERIAL_ACK_TIMEOUT_STEPS; timeout++)
         {
             if ((PEEK(CIA2_PRB) & SERIAL_DATA_MASK) == 0)
             {
@@ -204,7 +205,7 @@ bool send_tiny_command(unsigned char opcode, unsigned char value)
     // If ACK was seen, let the Tiny release PA1 before restoring CIA2.
     if (acknowledged)
     {
-        for (i = 0; i < 100; i++)
+        for (timeout = 0; timeout < 500; timeout++)
         {
             if (PEEK(CIA2_PRB) & SERIAL_DATA_MASK)
                 break;
@@ -235,27 +236,12 @@ void send_tiny_byte(unsigned char value, unsigned char *port_value, unsigned cha
         else
             *port_value &= (unsigned char)~SERIAL_DATA_MASK;
         POKE(CIA2_PRB, *port_value);
-        delay_ms(1, isFast);
+        delay_ms(SERIAL_HALF_CYCLE_DELAY, isFast);
 
         *port_value |= SERIAL_CLOCK_MASK;
         POKE(CIA2_PRB, *port_value);
-        delay_ms(1, isFast);
+        delay_ms(SERIAL_HALF_CYCLE_DELAY, isFast);
     }
-}
-
-unsigned char serial_crc8(const unsigned char *data, unsigned char length)
-{
-    unsigned char crc = 0;
-    unsigned char i;
-
-    while (length--)
-    {
-        crc ^= *data++;
-        for (i = 0; i < 8; i++)
-            crc = (crc & 0x80) ? (crc << 1) ^ 0x07 : crc << 1;
-    }
-
-    return crc;
 }
 
 int mainmenu()
