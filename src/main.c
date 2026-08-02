@@ -18,7 +18,7 @@
 #include "vdc_info_screen.h"
 #include "sid_info_screen.h"
 
-#define APP_VERSION "0.0.8"
+#define APP_VERSION "0.0.9"
 
 // CIA2 User Port registers and synchronous serial pins
 #define CIA2_PRB 0xDD01
@@ -26,14 +26,13 @@
 #define SERIAL_DATA_MASK 0x01  // User Port C / PB0 -> Tiny PA1
 #define SERIAL_CLOCK_MASK 0x02 // User Port D / PB1 -> Tiny PB2 / INT0
 
-// Ultra36 armed one-byte command protocol
+// Ultra36 one-byte command protocol
 #define SERIAL_OPCODE_BANK 0x01
 #define SERIAL_OPCODE_JIFFY 0x02
-#define SERIAL_BANK_PREFIX 0xA0
-#define SERIAL_JIFFY_PREFIX 0xB0
-#define SERIAL_ARM_DELAY 100
-#define SERIAL_HALF_CYCLE_DELAY 10
-#define SERIAL_ACK_TIMEOUT_STEPS 1000
+#define CMD_BANK_PREFIX 0xA0
+#define CMD_JIFFY_PREFIX 0xB0
+#define HALF_CYCLE_DELAY 20
+#define ACK_TIMEOUT_STEPS 1500
 
 typedef int bool;
 #define true 1
@@ -42,8 +41,9 @@ typedef int bool;
 // Forward declarations
 int mainmenu();
 bool send_tiny_command(unsigned char opcode, unsigned char value);
-void send_tiny_byte(unsigned char value, unsigned char *port_value, unsigned char isFast);
-void delay_ms(unsigned int ms, unsigned char isFast);
+void send_byte(unsigned char value, unsigned char *port_value);
+bool send_command(unsigned char command);
+void delay_units(unsigned int count);
 void draw_title_bar(void);
 void draw_fkey_bar(void);
 void draw_content_area(const char *title, const char *options[], int count, int selected);
@@ -123,111 +123,104 @@ int main(void)
     return result;
 }
 
-void delay_ms(unsigned int ms, unsigned char isFast)
+void delay_units(unsigned int count)
 {
-    unsigned int i, j;
-    for (i = 0; i < ms; i++)
+    unsigned int i;
+
+    for (i = 0; i < count; i++)
     {
-        for (j = 0; j < (isFast ? 60 : 30); j++)
-        {
-            __asm__("nop");
-        }
+        __asm__("nop");
     }
 }
 
 bool send_tiny_command(unsigned char opcode, unsigned char value)
 {
     unsigned char command;
+
+    if (opcode == SERIAL_OPCODE_BANK && value <= 15)
+        command = CMD_BANK_PREFIX | value;
+    else if (opcode == SERIAL_OPCODE_JIFFY && value <= 1)
+        command = CMD_JIFFY_PREFIX | value;
+    else
+        return false;
+
+    return send_command(command);
+}
+
+bool send_command(unsigned char command)
+{
     unsigned char saved_port;
     unsigned char saved_ddr;
     unsigned char port_value;
     unsigned int timeout;
     bool acknowledged = false;
-    bool dataReleased = false;
-    unsigned char isFast = (SCREENW == 80); // 2 MHz = fast
-
-    if (opcode == SERIAL_OPCODE_BANK && value >= 1 && value <= 15)
-        command = SERIAL_BANK_PREFIX | value;
-    else if (opcode == SERIAL_OPCODE_JIFFY && value <= 1)
-        command = SERIAL_JIFFY_PREFIX | value;
-    else
-        return false;
+    bool data_released = false;
 
     saved_port = PEEK(CIA2_PRB);
     saved_ddr = PEEK(CIA2_DDRB);
 
-    // Start from the released high state, then hold the clock low long enough
-    // to arm and reset the Tiny's one-byte receiver.
     port_value = saved_port | SERIAL_DATA_MASK | SERIAL_CLOCK_MASK;
     POKE(CIA2_PRB, port_value);
     POKE(CIA2_DDRB, saved_ddr | SERIAL_DATA_MASK | SERIAL_CLOCK_MASK);
-    delay_ms(SERIAL_HALF_CYCLE_DELAY, isFast);
+    delay_units(HALF_CYCLE_DELAY * 10);
 
-    port_value &= (unsigned char)~SERIAL_CLOCK_MASK;
-    POKE(CIA2_PRB, port_value);
-    delay_ms(SERIAL_ARM_DELAY, isFast);
+    send_byte(command, &port_value);
 
-    send_tiny_byte(command, &port_value, isFast);
-
-    // Finish with a low clock, then release PB0 so the Tiny can safely pull
-    // the shared data line low to acknowledge a validated command.
     port_value &= (unsigned char)~SERIAL_CLOCK_MASK;
     POKE(CIA2_PRB, port_value);
     POKE(CIA2_DDRB,
          (saved_ddr | SERIAL_CLOCK_MASK) &
          (unsigned char)~SERIAL_DATA_MASK);
 
-    // A command may end with a zero bit. First observe the released line
-    // return high, then treat a subsequent low as the Tiny's ACK.
-    for (timeout = 0; timeout < 200; timeout++)
+    for (timeout = 0; timeout < 300; timeout++)
     {
         if (PEEK(CIA2_PRB) & SERIAL_DATA_MASK)
         {
-            dataReleased = true;
+            data_released = true;
             break;
         }
-        delay_ms(1, isFast);
+        delay_units(HALF_CYCLE_DELAY);
     }
 
-    if (dataReleased)
+    if (!data_released)
     {
-        for (timeout = 0; timeout < SERIAL_ACK_TIMEOUT_STEPS; timeout++)
-        {
-            if ((PEEK(CIA2_PRB) & SERIAL_DATA_MASK) == 0)
-            {
-                acknowledged = true;
-                break;
-            }
-            delay_ms(1, isFast);
-        }
+        POKE(CIA2_PRB, saved_port);
+        POKE(CIA2_DDRB, saved_ddr);
+        return false;
     }
 
-    // If ACK was seen, let the Tiny release PA1 before restoring CIA2.
+    for (timeout = 0; timeout < ACK_TIMEOUT_STEPS; timeout++)
+    {
+        if ((PEEK(CIA2_PRB) & SERIAL_DATA_MASK) == 0)
+        {
+            acknowledged = true;
+            break;
+        }
+        delay_units(HALF_CYCLE_DELAY);
+    }
+
     if (acknowledged)
     {
-        for (timeout = 0; timeout < 500; timeout++)
+        for (timeout = 0; timeout < ACK_TIMEOUT_STEPS; timeout++)
         {
             if (PEEK(CIA2_PRB) & SERIAL_DATA_MASK)
                 break;
-            delay_ms(1, isFast);
+            delay_units(HALF_CYCLE_DELAY);
         }
     }
 
-    // Restore the CIA2 state so software using other User Port pins is not
-    // disturbed after the short transmission.
     POKE(CIA2_PRB, saved_port);
     POKE(CIA2_DDRB, saved_ddr);
 
     return acknowledged;
 }
 
-void send_tiny_byte(unsigned char value, unsigned char *port_value, unsigned char isFast)
+void send_byte(unsigned char value, unsigned char *port_value)
 {
     unsigned char mask;
 
     for (mask = 0x80; mask != 0; mask >>= 1)
     {
-        // Data changes only while clock is low. The Tiny samples on rising edge.
         *port_value &= (unsigned char)~SERIAL_CLOCK_MASK;
         POKE(CIA2_PRB, *port_value);
 
@@ -236,11 +229,11 @@ void send_tiny_byte(unsigned char value, unsigned char *port_value, unsigned cha
         else
             *port_value &= (unsigned char)~SERIAL_DATA_MASK;
         POKE(CIA2_PRB, *port_value);
-        delay_ms(SERIAL_HALF_CYCLE_DELAY, isFast);
+        delay_units(HALF_CYCLE_DELAY);
 
         *port_value |= SERIAL_CLOCK_MASK;
         POKE(CIA2_PRB, *port_value);
-        delay_ms(SERIAL_HALF_CYCLE_DELAY, isFast);
+        delay_units(HALF_CYCLE_DELAY);
     }
 }
 
@@ -379,6 +372,7 @@ int mainmenu()
             break;
         }
     }
+
 }
 
 void draw_title_bar(void)
@@ -470,7 +464,7 @@ void draw_content_area(const char *title, const char *options[], int count, int 
 void on_screen_instructions(const bool isJiffy)
 {
     cputsxy(1, 15, "Use UP/DOWN to select, ENTER to apply.");
-    cputsxy(1, 16, "Wait for blinking to complete.");
+    cputsxy(1, 16, "Wait for confirmation message.");
     cputsxy(1, 17, "Reboot or reset to take effect!");
     textcolor(COLOR_LIGHTGREEN);
     cputsxy(1, 18, "Hold reset for 3s to return to Menu");

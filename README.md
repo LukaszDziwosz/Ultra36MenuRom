@@ -113,7 +113,7 @@ How It Works
 	•	Uses the C128 MMU to enable external cartridge bank
 	•	Includes an interactive menu (arrow keys + enter)
 	•	Optionally supports a JiffyDOS toggle in the UI
-	•	Sends armed one-byte commands with acknowledgement using CIA2 PB0/PB1 on User Port pins C/D
+	•	Sends simple one-byte commands with acknowledgement using CIA2 PB0/PB1 on User Port pins C/D
 	•	All written in C and CC65 ASM using CC65 libraries
 
 The final output cart128_16.bin can be:
@@ -126,4 +126,3 @@ The final output cart128_16.bin can be:
 Created as part of the Ultra-36 internal ROM selector project.
 
 Designed to be simple, customizable, and expandable.
-
