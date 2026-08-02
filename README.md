@@ -114,6 +114,12 @@ How It Works
 	•	Includes an interactive menu (arrow keys + enter)
 	•	Optionally supports a JiffyDOS toggle in the UI
 	•	Sends simple one-byte commands with acknowledgement using CIA2 PB0/PB1 on User Port pins C/D
+	•	Bank selections are saved to ATtiny EEPROM and take effect on the next reset
+	•	Bank 0 is reserved for the Ultra-36 menu and is not selectable from the menu UI
+	•	`Empty_Bank` selects bank 1; user ROM labels select banks 2 and higher
+	•	F5 to BASIC is intended to select bank 1 temporarily without saving, then prompt the user to press RESET
+	•	Holding RESET for approximately three seconds temporarily selects bank 0 without changing EEPROM
+	•	A normal reset reads EEPROM again and launches the saved bank/Jiffy state
 	•	All written in C and CC65 ASM using CC65 libraries
 
 The final output cart128_16.bin can be:

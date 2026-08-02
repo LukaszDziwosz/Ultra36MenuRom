@@ -105,7 +105,9 @@ Connect these signals, the reset monitor, and the optional JiffyDOS control only
 
 ## First power-on and test
 
-On first power-up, bank 0 should display the Ultra-36 menu. Select a known ROM and restart the computer to confirm bank switching and persistent selection. Holding RESET for approximately three seconds should return the selector to menu bank 0.
+On first power-up, bank 0 should display the Ultra-36 menu. `Empty_Bank` is bank 1, and user ROM labels start at bank 2. Select a known ROM and restart the computer to confirm bank switching and persistent selection. Holding RESET for approximately three seconds should temporarily return the selector to menu bank 0 without changing the saved EEPROM selection. A normal reset applies the saved EEPROM bank and JiffyDOS state again.
+
+F5 to BASIC is intended to select bank 1 temporarily without saving, then ask the user to press RESET. This keeps EEPROM as the persistent ROM selection while still providing a quick exit to the empty/BASIC bank.
 
 If the computer does not start, disconnect power immediately. Recheck U36 alignment, IC orientation, JP1, firmware fuse settings, flash contents, solder joints, and the User Port data and clock connections before trying again.
 
