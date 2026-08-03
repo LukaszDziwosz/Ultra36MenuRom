@@ -107,7 +107,11 @@ Connect these signals, the reset monitor, and the optional JiffyDOS control only
 
 On first power-up, bank 0 should display the Ultra-36 menu. `Empty_Bank` is bank 1, and user ROM labels start at bank 2. Select a known ROM and restart the computer to confirm bank switching and persistent selection. Holding RESET for approximately three seconds should temporarily return the selector to menu bank 0 without changing the saved EEPROM selection. A normal reset applies the saved EEPROM bank and JiffyDOS state again.
 
-F5 to BASIC is intended to select bank 1 temporarily without saving, then ask the user to press RESET. This keeps EEPROM as the persistent ROM selection while still providing a quick exit to the empty/BASIC bank.
+F5 to BASIC arms bank 1 temporarily without saving, then asks the user to press RESET. The first reset enters the empty/BASIC bank; the following normal reset reads EEPROM and returns to the saved ROM selection.
+
+## IEC serial-bus warning
+
+Do not leave two or more IEC disk drives or peripherals daisy-chained while they are powered off. Unpowered device logic can load or back-power IEC Clock, Data, and peripheral RESET lines, causing C128 boot freezes, garbled screens, or missed Ultra-36 acknowledgements. One unpowered device may appear to work, but it is not guaranteed. Power every device that remains connected before starting the C128, or unplug every device that is off. This is an IEC-bus issue, not an Ultra-36 fault.
 
 If the computer does not start, disconnect power immediately. Recheck U36 alignment, IC orientation, JP1, firmware fuse settings, flash contents, solder joints, and the User Port data and clock connections before trying again.
 

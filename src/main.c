@@ -18,7 +18,7 @@
 #include "vdc_info_screen.h"
 #include "sid_info_screen.h"
 
-#define APP_VERSION "0.0.9"
+#define APP_VERSION "0.1.0"
 
 // CIA2 User Port registers and synchronous serial pins
 #define CIA2_PRB 0xDD01
@@ -29,8 +29,10 @@
 // Ultra36 one-byte command protocol
 #define SERIAL_OPCODE_BANK 0x01
 #define SERIAL_OPCODE_JIFFY 0x02
+#define SERIAL_OPCODE_TEMP_BANK 0x03
 #define CMD_BANK_PREFIX 0xA0
 #define CMD_JIFFY_PREFIX 0xB0
+#define CMD_TEMP_BANK_PREFIX 0xD0
 #define HALF_CYCLE_DELAY 20
 #define ACK_TIMEOUT_STEPS 1500
 
@@ -55,7 +57,8 @@ int handle_selection(int selected, int max_items, unsigned char key);
 void draw_rom_screen(int selected);
 void draw_jiffy_screen(int selected);
 void draw_info_screen(void);
-void show_status_message(const char *message);
+void show_status_message(const char *message, unsigned char color,
+                         unsigned char seconds);
 void on_screen_instructions(const bool isJiffy);
 void draw_util_bar(void);
 
@@ -63,6 +66,7 @@ void draw_util_bar(void);
 unsigned char SCREENW;
 int current_screen = 0; // 0=ROM, 1=JiffyDOS, 2=Info
 int previous_screen = 0;
+bool basic_reset_armed = false;
 
 #ifdef ONLINE_BUILD
 #include "online_rom_config.h"
@@ -141,6 +145,8 @@ bool send_tiny_command(unsigned char opcode, unsigned char value)
         command = CMD_BANK_PREFIX | value;
     else if (opcode == SERIAL_OPCODE_JIFFY && value <= 1)
         command = CMD_JIFFY_PREFIX | value;
+    else if (opcode == SERIAL_OPCODE_TEMP_BANK && value == 1)
+        command = CMD_TEMP_BANK_PREFIX | value;
     else
         return false;
 
@@ -256,6 +262,9 @@ int mainmenu()
     {
         key = cgetc();
 
+        if (basic_reset_armed)
+            continue;
+
         // Handle F-key navigation first
         switch (key)
         {
@@ -284,13 +293,20 @@ int mainmenu()
             }
             continue;
         case CH_F4:
-            show_status_message("Switching to C64 Mode...");
+            show_status_message("Switching to C64 Mode...", COLOR_LIGHTGREEN, 2);
             clrscr();
             c64mode(); // Goodbay folks
             break;
         case CH_F5:
-            show_status_message("Restarting the Menu program..");
-            return EXIT_SUCCESS;
+            show_status_message("Preparing BASIC...", COLOR_CYAN, 1);
+            if (send_tiny_command(SERIAL_OPCODE_TEMP_BANK, 1))
+            {
+                basic_reset_armed = true;
+                show_status_message("BASIC armed. Press RESET.", COLOR_LIGHTGREEN, 3);
+            }
+            else
+                show_status_message("ERROR: Ultra36 did not acknowledge.", COLOR_LIGHTRED, 3);
+            continue;
         case CH_F6:
             current_screen = 3;
             draw_fkey_bar();
@@ -329,11 +345,11 @@ int mainmenu()
             {
                 char buffer[40];
                 sprintf(buffer, "Sending %s...", romNames[rom_selected]);
-                show_status_message(buffer);
+                show_status_message(buffer, COLOR_CYAN, 1);
                 if (send_tiny_command(SERIAL_OPCODE_BANK, rom_selected + 1))
-                    show_status_message("Saved. Reset to activate ROM bank.");
+                    show_status_message("Saved. Reset to activate ROM bank.", COLOR_LIGHTGREEN, 2);
                 else
-                    show_status_message("ERROR: Ultra36 did not acknowledge.");
+                    show_status_message("ERROR: Ultra36 did not acknowledge.", COLOR_LIGHTRED, 3);
             }
             {
                 int old_selected = rom_selected;
@@ -349,14 +365,14 @@ int mainmenu()
         case 1: // JiffyDOS toggle
             if (key == CH_ENTER)
             {
-                show_status_message("Sending JiffyDOS setting...");
+                show_status_message("Sending JiffyDOS setting...", COLOR_CYAN, 1);
 
                 // jiffy_selected == 0 → ON → pass 1
                 // jiffy_selected == 1 → OFF → pass 0
                 if (send_tiny_command(SERIAL_OPCODE_JIFFY, jiffy_selected == 0 ? 1 : 0))
-                    show_status_message("Saved. Reset to apply JiffyDOS.");
+                    show_status_message("Saved. Reset to apply JiffyDOS.", COLOR_LIGHTGREEN, 2);
                 else
-                    show_status_message("ERROR: Ultra36 did not acknowledge.");
+                    show_status_message("ERROR: Ultra36 did not acknowledge.", COLOR_LIGHTRED, 3);
             }
             {
                 int old_selected = jiffy_selected;
@@ -726,14 +742,14 @@ void draw_util_bar(void)
     cputs(" SID Info");
 }
 
-void show_status_message(const char *message)
+void show_status_message(const char *message, unsigned char color,
+                         unsigned char seconds)
 {
     cclearxy(1, 21, SCREENW);
-    textcolor(COLOR_LIGHTGREEN);
+    textcolor(color);
     cputsxy(1, 21, message);
     textcolor(COLOR_WHITE);
-    // Brief pause to show the message
-    sleep(1);
+    sleep(seconds);
     // Clear the status line
     cclearxy(1, 21, SCREENW);
 }

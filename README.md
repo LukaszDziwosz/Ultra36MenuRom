@@ -117,10 +117,14 @@ How It Works
 	•	Bank selections are saved to ATtiny EEPROM and take effect on the next reset
 	•	Bank 0 is reserved for the Ultra-36 menu and is not selectable from the menu UI
 	•	`Empty_Bank` selects bank 1; user ROM labels select banks 2 and higher
-	•	F5 to BASIC is intended to select bank 1 temporarily without saving, then prompt the user to press RESET
+	•	F5 to BASIC arms bank 1 temporarily without saving, then waits for the user to press RESET
 	•	Holding RESET for approximately three seconds temporarily selects bank 0 without changing EEPROM
 	•	A normal reset reads EEPROM again and launches the saved bank/Jiffy state
 	•	All written in C and CC65 ASM using CC65 libraries
+
+### IEC bus warning
+
+Do not leave two or more IEC serial devices daisy-chained while they are powered off. Their unpowered logic can load or back-power the IEC Clock, Data, and peripheral RESET lines enough to destabilize a C128: boot freezes, garbled screens, and missed Ultra-36 acknowledgements are possible. One unpowered drive may appear to work, but that is not guaranteed. Power every connected IEC device before starting the C128, or physically disconnect each device that is off. This is an IEC bus condition outside Ultra-36.
 
 The final output cart128_16.bin can be:
 	•	Flashed to SST39SF020A, SST39SF040 or similar EEPROMs
