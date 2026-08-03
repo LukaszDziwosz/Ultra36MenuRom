@@ -63,6 +63,7 @@ void show_status_message(const char *message, unsigned char color,
 void on_screen_instructions(const bool isJiffy);
 void draw_util_bar(void);
 void fill_line(unsigned char y, unsigned char color, unsigned char reversed);
+void clear_menu_transition_rows(void);
 void draw_main_frame(const char *title);
 void draw_frame_rule(unsigned char y);
 
@@ -450,6 +451,8 @@ void draw_content_area(const char *title, const char *options[], int count, int 
 {
     unsigned char i;
 
+    clear_menu_transition_rows();
+
     // Keep a fixed, framed work area on both the 40- and 80-column displays.
     for (i = 3; i <= 20; i++)
     {
@@ -605,6 +608,8 @@ void draw_info_screen(void)
 {
     unsigned char i;
 
+    clear_menu_transition_rows();
+
     for (i = 3; i <= 20; i++)
     {
         cclearxy(0, i, SCREENW);
@@ -680,6 +685,18 @@ void fill_line(unsigned char y, unsigned char color, unsigned char reversed)
     for (i = 0; i < SCREENW; i++)
         cputc(' ');
     revers(0);
+}
+
+/* The VDC diagnostic owns its title on row 2 and its last colour test on
+ * row 21. Clear those rows whenever a regular menu page takes the screen
+ * back, then restore the footer separator. */
+void clear_menu_transition_rows(void)
+{
+    revers(0);
+    textcolor(COLOR_GRAY3);
+    cclearxy(0, 2, SCREENW);
+    cclearxy(0, 21, SCREENW);
+    fill_line(22, COLOR_LIGHTBLUE, 0);
 }
 
 void draw_frame_rule(unsigned char y)
