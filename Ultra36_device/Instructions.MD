@@ -34,7 +34,7 @@ Locate the component outlines, reference labels, pin 1 marks, and the U36 connec
 
 ### 2. Fit the low-profile components
 
-Install R1 and C1 first, followed by the ATtiny84A or its socket as required by the PCB revision. If the ATtiny84A is soldered directly, align its pin 1 indicator with the PCB marking. Keep each component seated close to the board and inspect the joints after soldering.
+Install R1 and C1 first, followed by the ATtiny84A. ATtiny84A is soldered directly, align its pin 1 indicator with the PCB marking. There is programming header so you can re program microcontroller after assembly. Keep each component seated close to the board and inspect the joints after soldering.
 
 ![ATtiny84A, resistor, and capacitor fitted](Ultra36_board_assembly_images/Ultra36_2.png)
 
@@ -60,6 +60,8 @@ Before inserting either programmable device:
 4. Confirm the orientation of both IC sockets and all headers.
 
 ![Completed Ultra-36 controller board](Ultra36_board_assembly_images/Ultra36_5.png)
+
+### 6. Inspect Ultra-36 User Port adapter. TBC...
 
 ## Programming
 
