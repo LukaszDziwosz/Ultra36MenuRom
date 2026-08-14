@@ -105,7 +105,7 @@ Apply solder on all contacts before next step.
 3. At the Ultra-36 end, use a 4-pin connector. Make sure connectors are faced up so you see metal elements.
 4. The Ultra-36 pins are numbered 0–3.
 5. Inspect every connector and wire for secure joints and correct pin order.
-6. Ultra-36 pin 0 is the JiffyDOS-enable pin. Do not connect the JiffyDOS ground wire. Connect only the wire from the top of the JiffyDOS EPROMs; Ultra-36 provides the ground connection.
+6. Ultra-36 pin 1 (second from left) is the JiffyDOS-enable pin. Do not connect the JiffyDOS ground wire. Connect only the wire from the top of the JiffyDOS EPROMs; Ultra-36 provides the ground connection.
 
 ![User Port adapter and connection cable](Ultra36_board_assembly_images/UltraWire_1.jpg)
 
