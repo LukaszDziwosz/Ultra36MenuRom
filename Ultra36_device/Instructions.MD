@@ -268,9 +268,10 @@ Remember that you modify your computer at your own risk.
 
 ## Ultra-36 on a budget
 
-- Instead of an SST39SF040, you can use an AMIC A29040B. If you try to buy an SST flash device on AliExpress, you may receive a relabeled AMIC device.
-- You can use standard pin headers as Ultra-36 mounting pins; rounded gold pins are recommended because they put less strain on the U36 socket.
-- You can use standard-size resistors on Ultra-36, but you will need to bend them because the flash chip sits above them.
+- Instead of an SST39SF040, you can use an AMIC A29040B.
+Just select correct chip in XGecu when flashing.
+- You can use standard pin headers as Ultra-36 mounting pins.
+- You can use standard-size resistor on Ultra-36, but you will need to bend it because the flash chip sits above.
 - You can use a standard 32-pin DIP socket instead of a precision socket, but you may need to file it so that it sits properly.
 
 ![Ultra-36 assembled with budget components](Ultra36_board_assembly_images/UltraBudget.jpg)
