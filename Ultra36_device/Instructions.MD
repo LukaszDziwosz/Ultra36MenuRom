@@ -119,7 +119,102 @@ Apply solder on all contacts before next step.
 
 ### ATtiny84A firmware
 
-Download the companion ATtiny84A firmware from [lukassoft.com/ultra36](https://lukassoft.com/ultra36). The firmware expects an 8 MHz internal clock and no bootloader. Set the required fuses using the programming instructions supplied with the download, then write the firmware and verify it before installing the controller on the board.
+Download the companion ATtiny84A firmware from [lukassoft.com/ultra36](https://lukassoft.com/ultra36). The firmware expects an 8 MHz internal clock and no bootloader. Set the required fuses using the programming, then write the firmware and verify it before installing the controller on the board.
+
+## 🔧 Programming the ATtiny84A
+
+Download `bootloader.bin` from the Ultra-36 firmware page on the LukasSoft website, then burn it to the ATtiny84A with a USBasp ISP programmer.
+
+### Target Settings
+
+    •    MCU: ATtiny84A
+    •    Clock: 8 MHz internal oscillator, full speed
+    •    Programmer: USBasp or compatible ISP programmer
+    •    Firmware file: bootloader.bin
+
+Fuse settings:
+
+```text
+Low fuse:      0xE2
+High fuse:     0xD7
+Extended fuse: 0xFF
+Lock byte:     0xFF
+```
+
+`lfuse=0xE2` selects the internal 8 MHz oscillator and disables the divide-by-8 clock prescaler, so the firmware runs at the full 8 MHz.
+
+### ISP Wiring
+
+Connect the USBasp programmer to the ATtiny84A:
+
+```text
+USBasp MOSI  -> ATtiny84A MOSI / PA6 / pin 7
+USBasp MISO  -> ATtiny84A MISO / PA5 / pin 8
+USBasp SCK   -> ATtiny84A SCK  / PA4 / pin 9
+USBasp RESET -> ATtiny84A RESET / PB3 / pin 4
+USBasp VCC   -> ATtiny84A VCC / pin 1
+USBasp GND   -> ATtiny84A GND / pin 14
+```
+
+### macOS
+
+Install `avrdude`:
+
+```sh
+brew install avrdude
+```
+
+Open Terminal in the folder containing `bootloader.bin`.
+
+For a fresh ATtiny84A, burn the fuses and firmware:
+
+```sh
+avrdude -c usbasp -p t84 \
+  -U lfuse:w:0xE2:m \
+  -U hfuse:w:0xD7:m \
+  -U efuse:w:0xFF:m \
+  -U lock:w:0xFF:m \
+  -U flash:w:bootloader.bin:r
+```
+
+For a firmware upgrade on a chip that was already programmed for Ultra-36, flash only the firmware:
+
+```sh
+avrdude -c usbasp -p t84 -U flash:w:bootloader.bin:r
+```
+
+### Windows
+
+Install the USBasp driver with Zadig. `libusbK` or `WinUSB` normally works.
+
+Install `avrdude` using Arduino IDE, Arduino CLI, Scoop, Chocolatey, or another AVR toolchain package.
+
+Open PowerShell in the folder containing `bootloader.bin`.
+
+For a fresh ATtiny84A, burn the fuses and firmware:
+
+```powershell
+avrdude -c usbasp -p t84 `
+  -U lfuse:w:0xE2:m `
+  -U hfuse:w:0xD7:m `
+  -U efuse:w:0xFF:m `
+  -U lock:w:0xFF:m `
+  -U flash:w:bootloader.bin:r
+```
+
+For a firmware upgrade on a chip that was already programmed for Ultra-36, flash only the firmware:
+
+```powershell
+avrdude -c usbasp -p t84 -U flash:w:bootloader.bin:r
+```
+
+If programming a factory-fresh chip fails or the USBasp reports clock/sync errors, retry with a slower ISP clock:
+
+```sh
+avrdude -c usbasp -B 10 -p t84 -U flash:w:bootloader.bin:r
+```
+
+If the fuses have not been set yet, include the fuse writes in the slower command as well.
 
 ### Function ROM image
 
@@ -146,7 +241,7 @@ The menu communicates with the ATtiny84A through two C128 User Port signals:
 | User Port C / CIA2 PB0 | PA1 | Serial data |
 | User Port D / CIA2 PB1 | PB2 / INT0 | Serial clock |
 
-Connect the data, clock, reset-monitor, and optional JiffyDOS-control wires only to the matching labeled board points. The Ultra-36 board receives power and ground through the U36 socket. Optional 330 Ω to 1 kΩ series resistors may be used on the data and clock wires.
+Connect the data, clock, reset-monitor, and optional JiffyDOS-control wires only to the matching labeled board points. The Ultra-36 board receives power and ground through the U36 socket.
 
 ## Installation in the Commodore 128
 
@@ -159,7 +254,7 @@ Connect the data, clock, reset-monitor, and optional JiffyDOS-control wires only
 
 ## First power-on and test
 
-On first power-up, bank 0 should display the Ultra-36 menu. `Empty_Bank` is bank 1, and user ROM labels start at bank 2. Select a known ROM and restart the computer to confirm bank switching and persistent selection. Holding RESET for approximately three seconds should temporarily return the selector to menu bank 0 without changing the saved EEPROM selection. A normal reset applies the saved EEPROM bank and JiffyDOS state again.
+On first power-up Ultra-36 will select `Empty_Bank` bank 1, hold reset for 3 seconds to enter Bank 0 Menu ROM, user ROM labels start at bank 2. Select a known ROM and restart the computer to confirm bank switching and persistent selection. Holding RESET for approximately three seconds should temporarily return the selector to menu bank 0 without changing the saved EEPROM selection. A normal reset applies the saved EEPROM bank and JiffyDOS state again.
 
 F5 to BASIC arms bank 1 temporarily without saving, then asks you to press RESET. The first reset enters the empty/BASIC bank; the following normal reset reads the EEPROM and returns to the saved ROM selection.
 
