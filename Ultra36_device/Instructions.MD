@@ -247,7 +247,7 @@ Connect the data, clock, reset-monitor, and optional JiffyDOS-control wires only
 
 1. Disconnect the computer from power and remove its case and shielding as required.
 2. Locate the U36 function-ROM socket and note its pin-1 orientation before removing the existing device, if fitted.
-3. Insert the programmed ATtiny84A and flash device into their sockets, matching every pin-1 indicator to the PCB markings.
+3. Insert the programmed flash device into their socket, matching every pin-1 indicator to the PCB markings.
 4. Align the Ultra-36 connector with U36. Confirm that every pin enters the socket and that no row is offset.
 5. Route the signal wires so they cannot be pinched by the shielding or case.
 6. Recheck orientation, jumper position, power-to-ground resistance, and cable routing before reconnecting power.
