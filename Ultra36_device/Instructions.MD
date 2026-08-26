@@ -266,7 +266,7 @@ If the computer does not start, disconnect power immediately. Recheck U36 alignm
 
 Remember that you modify your computer at your own risk.
 
-## Ultra-36 on a budget
+## Ultra-36 Tips
 
 - Instead of an SST39SF040, you can use an AMIC A29040B.
 Just select correct chip in XGecu when flashing.
@@ -275,3 +275,7 @@ Just select correct chip in XGecu when flashing.
 - You can use a standard 32-pin DIP socket instead of a precision socket, but you may need to file it so that it sits properly.
 
 ![Ultra-36 assembled with budget components](Ultra36_board_assembly_images/UltraBudget.jpg)
+
+- Alternatively, you can take the reset signal directly from inside the C128. This reduces the User Port adapter connection from three wires to just two.
+
+![FB11 IEC Reset line](Ultra36_board_assembly_images/IEC_Reset_C128.jpg)
