@@ -18,6 +18,10 @@ This project provides a bootable function ROM that displays a menu for selecting
 
 Menu program built entirely in the CC65 toolchain, this system provides a robust, customizable launcher for embedded ROMs.
 
+### Updating the Ultra-36 microcontroller firmware
+
+See the [firmware update guide](FirmwareUpgrade/README.md) for USBasp wiring, photos, and macOS/Linux/Windows programming instructions. The guide uses the downloadable firmware binary and does not require access to the private firmware repository.
+
 ⸻
 Screenshots
 
